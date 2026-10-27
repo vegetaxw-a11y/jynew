@@ -6,3 +6,12 @@
 /build_x64
 
 /.idea
+
+# Python cache (tools/moddev)
+__pycache__/
+
+# MOD export output
+/Export
+
+# jyx2mod unity 子命令的构建日志
+/Logs/
