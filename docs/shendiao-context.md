@@ -1393,3 +1393,116 @@ audit 22_jueqinggu  -> 5 事件 0 问题（399/857/856/401 目标 0.0m，400 木
 第四章 程英居 / 铁掌山 / 黑龙潭 / 一灯居 / 百花谷 —— 注意 `47_yidengju`、
 `21_heilongtan`、`81_siguoya`、`20_baihuagu` 里有大量 `m_*EventId: -1` 的空事件物体，
 要用 `patch_scene_events.py --set-event <物体名>=<新Id>` 先分配 Id 再写 Lua。
+
+---
+
+# 2026-10-28 凌晨：第四章《南国旧友》
+
+五个场景一次做完：程英居 `45`、一灯居 `47`、黑龙潭 `21`、百花谷 `20`、铁掌山 `48`。
+
+## 一、这一轮修掉的两个工具 bug
+
+### 1. `patch_scene_events.py` 不认 `m_EventTargets: []`
+
+`21_heilongtan` 的 421 事件明明有 `m_InteractiveEventId: 421`，`--set-target 421=…`
+却**静默跳过**（不报错、不算失败）。原因是空列表在 YAML 里写成
+
+```yaml
+  m_EventTargets: []
+```
+
+而旧正则是 `(^  m_EventTargets:\n)`，要求 `:` 后立刻换行 —— `[]` 形式永远匹配不上。
+`subn` 返回 0 次替换，脚本照常打印"已写入"。
+
+修复：`(^  m_EventTargets:)(?: \[\])?\n(...)`，改完 `--set-target` 对空列表事件也能生效，
+`--clear-target` 同理（保留 `m_EventTargets:` + 空列表的合法写法）。
+
+### 2. `edit_instance.py --name` 可能改到**子对象**的 m_Name
+
+一个 prefab 实例的 `m_Modifications` 里可能有多条 `propertyPath: m_Name`
+（根 GameObject 一条、内部子对象各一条）。`edit_instance.py` 取的是**第一条**，
+于是 `45_chengyingju` 的程英改完名字后：
+
+```
+audit 仍显示 target "ChengYing"，并报「剧情点名但场上没有：程英(90)」
+```
+
+实际被改的是 target `2452833730956876070`（prefab 内部子对象）的 m_Name，
+根 GameObject（`8267541098496238243`）还是 `ChengYing`。临时用脚本直接改 YAML 解决。
+
+**遗留**：`edit_instance.py` 应当按「stripped Transform 的 m_CorrespondingSourceObject」
+找到实例根 GameObject 的 fileID，只改 target 等于它的那条 m_Name。`resolve_target.py`
+已经把根 GO 查出来了，接一下就行。改名前先跑 `audit` 或 `resolve_target --name` 复核。
+
+## 二、重复 NPC 陷阱：模板里可能已经有这个模型
+
+`20_baihuagu` 里本来就有 `zhoubotong`（`592901478`, (13, 4.96, 7)），
+`48_tiezhangshan` 里本来就有 `qiuqianren`（`921350305`, (2.11, 0.39, 10.18)）。
+用 `add_prefab` 再摆一个「周伯通」/「裘千仞」会**两只模型站在同一个点上**。
+
+正确做法（本轮采用）：
+
+1. `resolve_target.py --name <模板名>` 先确认有没有同款实例及其 instanceID；
+2. 有 → `edit_instance.py --instance <id> --name 中文名` 改名即可（m_EventTargets 指向的是
+   stripped GameObject，改名不影响已绑定的 target）；
+3. 我多摆的那两个用 `remove_scene_node.py --instance` 删掉。
+
+`48` 的 `qiuqianren` 改名成「铁掌帮弟子」后正好服务山门事件 `450`，
+新加的「裘千仞」放山顶大殿服务 `453`。
+
+## 三、空闲事件的分配（`--set-event`）
+
+`47_yidengju` / `21_heilongtan` / `20_baihuagu` 里有大量 `m_*EventId: -1` 的空事件物体，
+物体名就是序号（`0`、`1`、`4`…）。分配方式：
+
+```powershell
+python tools/shendiao/patch_scene_events.py --scene <scene.unity> \
+    --set-event 0=424 --set-target 0=<strippedGO> \
+    --collider 0=3.5,3.5,3.5 --set-layer 20 --trigger --apply
+```
+
+| 场景 | 物体名 → 事件 Id | 目标 |
+| --- | --- | --- |
+| `47_yidengju` | `0` → `424` | 一灯 `2150000002` |
+| `21_heilongtan` | `4` → `421`、`1` → `422`、`2` → `423` | 瑛姑 `2150000002` |
+| `20_baihuagu` | （`405` 原本就有） | 周伯通 `592901480` |
+
+注意：`--set-event` 与 `--collider` 在同一次调用里时，`resolve()` 用的是**原始**事件 Id，
+所以同一批里两者都要用**物体名**（或旧 Id）当 token，不能一个用新 Id 一个用旧名。
+
+`21` 的 `423` 原本离瑛姑 3.1m（`audit` 判 `FAR`），`--move 423=2.0,4.5,-2.6` 拉到 1.6m。
+
+## 四、第四章锚点
+
+| 场景 | EventId | 内容 |
+| --- | --- | --- |
+| `45_chengyingju` | `402` | 程英疗伤、教「玉箫剑法」(71)，设 `程英相救` |
+| `45_chengyingju` | `906` | 陆无双教「分花拂柳手」(181)，设 `遇陆无双` |
+| `47_yidengju` | `424` | 一灯传「九阴疗伤篇」(32)、加血 120，设 `见一灯` |
+| `21_heilongtan` | `421` | 瑛姑托话，设 `见瑛姑` |
+| `21_heilongtan` | `422` | 淤泥旁白，设 `黑龙潭淤泥` |
+| `21_heilongtan` | `423` | 白狐，得【玉蜂浆】37，设 `灵狐` |
+| `20_baihuagu` | `405` | 周伯通·左右互搏（攻+20 轻功+10），设 `遇周伯通` |
+| `48_tiezhangshan` | `450` | 山门弟子，设 `上铁掌山` |
+| `48_tiezhangshan` | `448/449/454/907` | 寨墙、哨口、兵器库、界石旁白 |
+| `48_tiezhangshan` | `453` | 斗裘千仞 **208**，设 `击退裘千仞` / `第四章完成` |
+
+新人物：35 陆无双、36 周伯通、37 瑛姑、38 一灯、39 裘千仞（人物表 72-76 行）；
+`Models/裘千仞.asset`（GUID `87e53210…` → `Qiuqianren.prefab`）；战斗 `208 斗裘千仞 / 02_Battle / 4200`。
+
+## 五、验证
+
+```
+configs shendiao       -> 7 张表
+lint_lua --battle      -> 158 脚本 0 问题
+check_story            -> 人物 72 / 物品 75 / 武功 29 / 战斗 36；158 脚本 0 错 0 提醒
+check_scene_fileids    -> 37 场景 0 问题
+jyx2mod check shendiao -> [ok]
+audit --all --quiet    -> 20/21/22/45/47/48 均 0 问题，NPC 全部在场
+```
+
+## 六、下一步
+
+第五章 华山派 `57_huashanpai` / 思过崖 `81_siguoya`（洪七公与欧阳锋、华山论剑）
+→ 第六章 绝情谷底 `80_jueqinggudi`（十六年之约，小龙女、杨过已在场）→ 最后统一打包 AB。
+

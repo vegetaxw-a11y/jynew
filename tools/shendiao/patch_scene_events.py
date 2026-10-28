@@ -33,7 +33,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from list_prefab_instances import split_blocks  # noqa: E402
 
 GO_RE = re.compile(r'm_GameObject: \{fileID: (-?\d+)\}')
-TARGETS_RE = re.compile(r'(^  m_EventTargets:\n)((?:  - \{fileID: -?\d+\}\n)*)', re.M)
+# 空列表有两种写法：`m_EventTargets: []` 与 `m_EventTargets:` 换行接空列表，
+# 只认后者会让「本来没有 target 的事件」永远绑不上目标（静默跳过，n=0）。
+TARGETS_RE = re.compile(r'(^  m_EventTargets:)(?: \[\])?\n((?:  - \{fileID: -?\d+\}\n)*)', re.M)
 POS_RE = re.compile(r'(^  m_LocalPosition: \{x: )([-0-9.e]+)(, y: )([-0-9.e]+)'
                     r'(, z: )([-0-9.e]+)(\})', re.M)
 SIZE_RE = re.compile(r'(^  m_Size: \{x: )([-0-9.e]+)(, y: )([-0-9.e]+)'
@@ -159,7 +161,7 @@ def main():
         lst = ''.join('  - {fileID: %s}\n' % t for t in tgts)
         for e in resolve(events, token):
             body = edits.get(e['mono']['fid'], e['mono']['body'])
-            nb, n = TARGETS_RE.subn(lambda m: m.group(1) + lst, body, count=1)
+            nb, n = TARGETS_RE.subn(lambda m: m.group(1) + '\n' + lst, body, count=1)
             if n:
                 set_body(e['mono'], nb)
                 print('  targets=%-22s : %s' % (tgts, e['name']))
@@ -171,7 +173,7 @@ def main():
                 continue
             for e in resolve(events, token):
                 body = edits.get(e['mono']['fid'], e['mono']['body'])
-                nb, n = TARGETS_RE.subn(lambda m: m.group(1), body, count=1)
+                nb, n = TARGETS_RE.subn(lambda m: m.group(1) + '\n', body, count=1)
                 if n:
                     set_body(e['mono'], nb)
                     print('  targets=[]                     : %s' % e['name'])
