@@ -101,3 +101,111 @@ PIL 可用（无 numpy），地形是 Unity Terrain（TerrainData guid `d4c1a58a
 - ⚠️ 无法确认那次是否使用**新存档**（旧存档 `WorldMapSaveData.areaMask = 0` 会导致人物可见但走不动）
 
 **下一步只剩这一件事**：开新游戏 → 铁枪庙 → 走出地图 → 目视确认主角能走、镜头跟随、落点在铁枪庙触发器上。
+
+---
+
+## 2026-10-28 下午：弃用渡城地图，改用 JYX2 官方地图（线性路线版）
+
+提交 `8d5ab801d`。上一轮修的"传送链路"本身没问题，但**地图选错了**，本轮是换底。
+
+### 三层诊断（按证据）
+
+1. **地图是假的**：shendiao 的 20 张图是 SAMPLE「渡城」的复制品。`场景.xlsx` 的
+   `Id / MapScene / TransportToMap / 音乐 / 标签` 与 SAMPLE 逐行相同，**只有 `Name` 列被改成神雕地名**
+   （莫穿林居→嘉兴·铁枪庙、茶恩寺→陆家庄、钟鸣阁→襄阳城、野狼谷→万兽山庄、黑熊谷→蒙古大营…）。
+2. **大地图太小且方位全错**：shendiao 172×172 单位 / 18 个点；JYX2 是 440×440 / 79 个点。
+   shendiao 的落点照抄渡城城内布局：嘉兴在 x=39（最西）、襄阳在 x=211（最东）。
+3. **文案与坐标脱节**：`Lua/4.lua:18` 写 `"序章：往大地图东行，去江南寻访白袍客。"`，
+   而江南（嘉兴 x=39 / 临安 x=124）在西半张图 —— 按指引往东找，必然找不到。
+
+### 坐标系结论（重要，别再猜）
+
+Unity 世界轴与地理方位（由 15+ 个 JYX2 地点交叉验证：光明顶/昆仑派 x≈400+ 在西、侠客岛/万鳄岛 z≈440+ 在南、桃花岛 x=137/z=341 在东南）：
+
+```
++X = 西      -X = 东
++Z = 南      -Z = 北
+```
+
+**且** `CM vcam1` 原本是 `euler(45, 225, 0)`，45° 斜视角让屏幕方向再偏 45°：
+
+| | 原相机 225° | 改后 180° |
+| --- | --- | --- |
+| 屏幕上方 | 东北 | **北** |
+| 屏幕右方 | 东南 | **东** |
+
+这就是"东南西北搞错"的机制根源，本轮已把相机转正。
+
+### 搬运可行性（关键数据）
+
+JYX2 场景的资源引用几乎全是 `GLOBAL`（随游戏本体 `base_assets` 走），每个场景只有 **1 个**私有资源（自己的 `NavMesh.asset`），大地图额外多 1 个 `SampleSettings.lighting`：
+
+| 场景 | GLOBAL 引用 | 私有 |
+| --- | --- | --- |
+| `1000_daditu` | 10445 / 175 个 | 2 |
+| `19_chongyanggong` | 7844 / 63 个 | 1 |
+| `22_jueqinggu` | 15745 / 59 个 | 1 |
+| `75_taohuadao` | 22430 / 56 个 | 1 |
+
+所以复制 `.unity` + 自己的 `NavMesh.asset` 即可，不用搬模型贴图。`tools/shendiao/import_jyx2_maps.py` 负责这件事（重写 GUID + 同步引用 + AB 重标 `shendiao_maps`）。
+
+### 传送机制（改配置前必看）
+
+```csharp
+// MapTeleportor.cs:127-131  —— 大地图上点触发器
+var nextMap = LuaToCsBridge.MapTable[0];              // ← 默认值就是地图 Id 0！
+if (curMap.Tags.Contains("WORLDMAP"))
+    nextMap = nextMap.GetMapByName(this.gameObject.name);
+
+// MapTeleportor.cs:155-161  —— 离开场景
+else if (curMap.Tags.Contains("WORLDMAP"))  para.triggerName = "Leave";
+else if (nextMap.Tags.Contains("WORLDMAP")) para.triggerName = curMap.Name;
+```
+
+**双向都靠 `Name` 与大地图触发器名逐字匹配。** 匹配不上的后果不是报错，而是**默默传送到 Id 0**。
+所以大地图 79 个地名必须全部配齐 —— 这是本轮给 65 个地点配"未开放"占位的原因。
+
+`EnterCondition = 1` 时 `CheckCanEnterMap()` 返回 false（`GameRuntimeData.cs:699`），
+`ShowEnterButton()` 直接 return —— 不显示进入按钮，玩家踩上去无反应也不会误传送。
+
+### 线性路线（剧情 + 地理最近邻）
+
+| 序 | Id | 名称 | 坐标 (x,z) | 上一站距离 |
+| --- | --- | --- | --- | --- |
+| 1 | 0 | 破庙 | 181, 19 | — |
+| 2 | 1 | 重阳宫 | 217, 145 | 131 |
+| 3 | 2 | 古墓 | 219, 144 | 2 |
+| 4 | 3 | 神雕山洞 | 170, 68 | 90 |
+| 5 | 4 | 绝情谷 | 259, 134 | 110 |
+| 6 | 5 | 绝情谷底 | 254, 131 | 6 |
+| 7 | 6 | 百花谷 | 271, 158 | 32 |
+| 8 | 7 | 华山派 | 302, 193 | 46 |
+| 9 | 8 | 思过崖 | 301, 188 | 5 |
+| 10 | 9 | 铁掌山 | 343, 302 | 122 |
+| 11 | 10 | 黑龙潭 | 351, 309 | 11 |
+| 12 | 11 | 一灯居 | 370, 314 | 19 |
+| 13 | 12 | 程英居 | 422, 295 | 56 |
+| 14 | 13 | 桃花岛 | 138, 341 | 288（终章远行） |
+
+第 2 站必须是重阳宫：`Lua/1001.lua` 序章正剧是"郭靖送杨过上终南山"，
+第 40 行原写 `赶赴「终南山·重阳宫」`，已改为 `往西南方赶赴【重阳宫】`。
+
+其余 65 个地点 `EnterCondition=1`、`Name` 加 `〔未开放〕` 后缀，
+大地图触发器的 GameObject 名字也已同步改名（`m_Name` 在 `.unity` 里是 `"\uXXXX"` 转义，
+必须按转义形式改，否则匹配 0 次）。
+
+### 校验
+
+- `python tools/shendiao/check_maplinks.py` → **14 开放 + 65 未开放，结论：全部闭合**
+- `python tools/moddev/jyx2mod.py check shendiao` → **一切正常**
+- `python tools/moddev/jyx2mod.py unity shendiao` → `shendiao_maps` 135.8 MB + `shendiao_mod` 35.1 MB（未带 base_assets，共享资源被复制进包，故偏大）
+- `python tools/moddev/jyx2mod.py install shendiao --src Export` → 已装入游戏
+
+### 待办
+
+1. **游戏内验证**（需人工）：新存档 → 破庙 → 出图 → 醒目视确认「屏幕上方=北、右方=东」、主角能动、镜头跟随
+2. 导入场景内的 `GameEvent` 仍指向 JYX2 的 story id(0~16)，会与 shendiao 现有 Lua 串戏
+   （如 `62_pomiao` 有 id 0/3/4/5/6/10，其中 4 恰好是庙祝对话，其余不匹配）→ 剧情阶段统一重绑
+3. 原 20 张渡城场景仍在包内占体积，确认无用后删除
+4. 桃花岛距第 13 站 288 单位，若嫌远可换成 `23_hongqigongju`（210,168，紧邻古墓一带）
+
