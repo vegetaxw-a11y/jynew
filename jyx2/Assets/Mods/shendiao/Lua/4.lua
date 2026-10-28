@@ -15,5 +15,5 @@ if GetFlagInt("父亲遗物") == 1 then goto label0 end;
     Talk(111, "他若还在江湖上走动，你去终南山打听打听，兴许能寻着。")
     SetFlagInt("庙祝指路", 1);
     ModifyEvent(-2, -2, -2, -2, -1, -1, -1, -2, -2, -2, -2, -2, -2);
-    ShowMessage("序章：出庙后往大地图西南方走，赶赴【重阳宫】寻访白袍客。")
+    ShowMessage("序章：出庙后往大地图右下方走，赶赴【重阳宫】寻访白袍客。")
 do return end;

@@ -251,4 +251,61 @@ LevelMasterBooster  ·  [Decal Root]  ·  cankao(参考图)  ·  BigMapNameDrawe
 `62_pomiao` 的 `Level/Triggers` 下可直观看到残留的 JYX2 story id `0/3/4/5/6/10`
 与 `Timeline/[Timeline]ka564_小虾米破庙挖坟` 过场 —— 即"串戏"待办的具体位置。
 
+---
+
+## 更正：大地图相机参数（此前结论有误，以本节为准）
+
+前文写的「`CM vcam1` 原为 `euler(45,225,0)`、转正为 `(45,180,0)`」是**错的**，已回滚。实测数据：
+
+| | `m_LocalRotation`（真值） | 换算欧拉角 | `m_LocalEulerAnglesHint` |
+| --- | --- | --- | --- |
+| JYX2 原版 = 当前还原值 | `{0.13088542, -0.8681629, 0.31598538, 0.3596048}` | **俯角 27°、偏航 -127.5°** | `(45, 225, 0)` ← **过期缓存，不可信** |
+
+**教训（花了两次打包才确认）**：
+
+- `m_LocalEulerAnglesHint` 只是编辑器面板显示的缓存值，**可能与 `m_LocalRotation` 完全不一致**。
+- 改 `.unity` 里的旋转**必须改 `m_LocalRotation` 四元数**；按 hint 反推四元数会连俯角一起改掉
+  （本次 27°→45°），透视压缩明显变化，用户观感即"画面变形"。
+- 回滚方式：`python tools/shendiao/set_camera_rotation.py <场景> --name "CM vcam1" --copy-from <JYX2原场景> --apply`
+
+### 原视角下的屏幕方位映射（实测换算）
+
+相机 `yaw=-127.5°`（`pitch=27°` 不影响水平朝向）。世界轴 `+X=西 / +Z=南`：
+
+| 屏幕方向 | 地理方位 | 方位角（北=0°顺时针） |
+| --- | --- | --- |
+| 上 | 东北偏东 | 52.5° |
+| 右 | 东南偏南 | 142.5° |
+| 下 | 西南偏西 | 232.5° |
+| 左 | 西北偏北 | 322.5° |
+
+**JYX2 原版大地图本身就是"斜 45°"视角设计**，屏幕上≠北，这不是 bug。
+
+### 最终决策（2026-10-28 二次修正，用户确认）
+
+- **相机保持 JYX2 原版原样**，不做任何旋转（转正会变形，已否决）
+- **地图点位与建筑也不移动**：大地图引用 100+ 个独立 Prefab，点位本身与地形严丝合缝；
+  且 `NavMesh.asset` 是提前烘培的二进制数据，移建筑后不会重烘 → 玩家会撞空气墙 / 看得见走不动
+- **方位指引改用"屏幕方向"**：
+
+| 文件 | 改后文案 |
+| --- | --- |
+| `Lua/4.lua:18` | `序章：出庙后往大地图右下方走，赶赴【重阳宫】寻访白袍客。` |
+| `Lua/1001.lua:40` | `请前往大地图，往右下方赶赴【重阳宫】。` |
+
+推导：破庙 `(181,19)` → 重阳宫 `(217,145)`，`ΔX=+36`（西）、`ΔZ=+126`（南）；
+在屏幕坐标系里投影为 **下方 105.3 / 右方 78.0** → 右下方（从正下向右偏约 37°）。
+
+### 查/改旋转的两个工具
+
+```powershell
+# 查任意对象的四元数、换算欧拉角、hint
+python tools/shendiao/inspect_transform.py <scene.unity> "CM vcam1"
+
+# 从参考场景原样复制 / 指定欧拉角（默认 dry-run，加 --apply 生效）
+python tools/shendiao/set_camera_rotation.py <scene.unity> --name "CM vcam1" --copy-from <ref.unity>
+python tools/shendiao/set_camera_rotation.py <scene.unity> --name "CM vcam1" --euler 27,180,0
+```
+
+
 
