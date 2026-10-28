@@ -1,0 +1,65 @@
+# JYX2 / 群侠传 MOD 开发 —— Cline 工作规则
+
+## 项目速览
+
+- Unity **2020.3.32f1**，工程在 `jyx2/`，可执行 MOD：`jyx2/Assets/Mods/{JYX2,SAMPLE,xiastart_roguelike,shendiao}`
+- 命令行工具在 `tools/moddev/`（见 `tools/moddev/README.md`），场景/资源探针在 `tools/shendiao/`
+- 根目录的 `_wm_*.txt`、`_st.txt` 等是**临时抓取产物**，不是源码，可随时删除
+
+## 读文件：大文件必须切段
+
+- `*.asset` / `*.unity` / `*.prefab` / `*.xml` 只允许用 `read_files` 的 `start_line`/`end_line` 读取，**单次 ≤ 500 行**
+- 禁止把整个 `.unity`（几 MB）或 `Terrain/*.asset`（单个 2 MB+）整份读进上下文
+- 需要"全局结构"时，先写/复用脚本（`tools/shendiao/_inspect_*.py`）输出**摘要**，只把摘要读进来
+- 禁止不加过滤地 `Get-ChildItem -Recurse` 直接输出到上下文；先聚合（数量 / 总大小 / 匹配项），再决定读什么
+
+## 工具输出：先落盘再读
+
+- **中文 Windows 下 python 默认按 cp936(GBK) 写 stdout**，任何经 PowerShell 的捕获都会乱码：
+  `| Out-String | Set-Content -Encoding utf8` ❌ 、`> _tmp.txt` ❌ 都试过，**中文照样花**
+- 唯一可靠写法 —— 让子进程自己吐 UTF-8 字节，绕开 PowerShell 解码：
+
+  ```powershell
+  $env:PYTHONIOENCODING='utf-8'
+  Start-Process python -ArgumentList 'tools/shendiao/check_maplinks.py' `
+    -RedirectStandardOutput _tmp.txt -RedirectStandardError _tmp.err -NoNewWindow -Wait
+  ```
+
+  再用 `read_files` 读 `_tmp.txt`。自检：UTF-8 的"场景"是 `\xe5\x9c\xba\xe6\x99\xaf`，若看到 `锟斤拷` / `����` 就是编码错了，别硬猜内容
+- 单次工具输出预计 > 20 KB 时，必须先落盘 + 只读关键行段，不要直接回显
+
+## 会话卫生（重要）
+
+- 一个会话控制在 ~150 条消息以内；完成一个模块（例如"大地图传送"）就归档结论再开新会话
+- 结论写进 `docs/`（如 `docs/shendiao-context.md`）或用 `.clinerules` 传递，**不要靠上下文记忆跨会话**
+- 上下文体量估算：中文约 1 字 ≈ 0.6 token，英文约 3.5 字符 ≈ 1 token；单次 prompt 目标 < 60k token
+- 出现"模型开始胡言乱语 / 反复输出同一句套话"时，**立刻停止在当前会话里追问**：换新会话 + 把结论从 `docs/` 带过去
+
+## 判读异常：先分辨"谁说的"
+
+- 若回复是 `您的问题我无法回答。` / `抱歉，我无法回答这个问题。` / `抱歉，这个问题未找到相关结果。` / `抱歉，您的问题我无法识别。`
+  → 这是**上游网关的兜底文案**（Cline 扩展源码中不存在这些字符串），不代表模型真的拒绝
+- 排查顺序：① 换新会话发一句话验证链路 → ② 若是长会话，先看 `~/.cline/data/sessions/<id>/` 下的
+  `.messages.json` / `.compaction.json` → ③ 检查 `~/.cline/data/settings/{models,providers}.json` 的
+  `contextWindow` / `maxInputTokens` 是否填反或虚高
+- 网关：`https://gateway.theturbo.ai/v1`（openai-compatible），act 模式模型 `deepseek-v4.1-flash`
+
+## 常用命令（在仓库根执行）
+
+```powershell
+python tools/moddev/jyx2mod.py list                     # 工程内 / 已装 MOD
+python tools/moddev/jyx2mod.py configs shendiao         # xlsx -> Lua
+python tools/moddev/jyx2mod.py check shendiao           # 体检
+python tools/moddev/jyx2mod.py unity shendiao           # 导出 AB（自动跳过 base_assets）
+python tools/moddev/jyx2mod.py install shendiao --src Export/shendiao
+python tools/moddev/jyx2mod.py run --follow             # 启动并跟踪 Player.log
+```
+
+- 游戏日志：`%USERPROFILE%\AppData\LocalLow\jynew\群侠传启动\Player.log`
+- 改完 `.unity` / `Player.prefab` 后，**必须用新存档**验证（旧存档会带 `WorldMapSaveData.areaMask = 0`，导致 NavMesh 失效、人物"看得见但走不动"）
+- 改 `tools/moddev/excel2lua.py` 后必须跑 `python tools/moddev/selftest.py`，要求三个内置 MOD 错误数为 0
+
+## 提交前
+
+- `git status --short` 确认改动范围，删掉临时 `_*.txt` / `__pycache__`
+- 不要把 `Export/`、`Library/`、大体积 AB 产物提交进仓库
