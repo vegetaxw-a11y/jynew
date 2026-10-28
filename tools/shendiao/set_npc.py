@@ -33,10 +33,15 @@ NPC_LAYER = 16
 # 每个角色都用独立 prefab，不做一人多角共用。
 # y 必须跟场景地面一致：00 的地面在 5.0，01/02 沿用 SAMPLE 原实例的高度。
 LAYOUT = {
+    # 00 的坐标必须和 Level/Triggers 里对应触发器重合，否则玩家走到 NPC 面前
+    # 也进不了 GameEvent 的碰撞盒（Jyx2Player.CanSee 用 bounds.Contains 判定），
+    # 表现为"人物在，但按交互没反应"。
+    #   Trigger 3 (19.47, 5.61, -1.64) -> 事件 4  = 庙祝对话
+    #   Trigger 6 ( 4.92, 5.61, 18.79) -> 事件 1001 = 郭靖到访
     "00_mochuanlinju": [
-        ("庙祝", "StoryNpc/Maitanghululaotou", (0.5, 5.0, 2.0), 0),
-        ("郭靖", "BattleNpc/Guojing", (-1.8, 5.0, 4.2), 20),
-        ("黄蓉", "BattleNpc/Huangrong", (2.6, 5.0, 3.6), 340),
+        ("庙祝", "StoryNpc/Maitanghululaotou", (19.47, 5.0, -1.64), 0),
+        ("郭靖", "BattleNpc/Guojing", (4.92, 5.0, 18.79), 180),
+        ("黄蓉", "BattleNpc/Huangrong", (6.4, 5.0, 19.2), 200),
     ],
     "01_moqiaoshanzhuang": [
         ("郭靖", "BattleNpc/Guojing", (26.56, 0.1, 0.42), 0),
@@ -49,6 +54,14 @@ LAYOUT = {
         ("小龙女", "BattleNpc/xiaolongnv", (0.584, 0.24, 10.43), 90),
         ("李莫愁", "BattleNpc/Miejue", (11.2, 0.2, 38.13), 0),
     ],
+}
+
+# 触发器碰撞盒的中心高度（Trigger 的 y）必须能被玩家踩到：
+# 01/02 的触发器在 y=0.5、玩家 y≈0.1，盒 y 范围 [0,1] 包含玩家 -> 正常。
+# 00 原本被写成 y=5.61，而地面/玩家在 y=5.0，盒范围 [5.11,6.11] 不含玩家，
+# 于是所有交互和进入事件都失效。这里按场景给出"触发器应有的 y"。
+TRIGGER_Y = {
+    "00_mochuanlinju": 5.0,
 }
 
 
@@ -159,6 +172,11 @@ def build_npc_blocks(inst_id, tf_id, parent_tf, npc, pf):
 
 def find_npc_transform(docs):
     """Level/NPC 的 Transform id"""
+    return find_level_child_transform(docs, "NPC")
+
+
+def find_level_child_transform(docs, name):
+    """Level/<name> 的 Transform id"""
     gn, tf_go, father = {}, {}, {}
     for cls, fid, stripped, raw in docs:
         if cls == "1" and not stripped:
@@ -173,14 +191,62 @@ def find_npc_transform(docs):
             father[fid] = m.group(1) if m else "0"
 
     for tid, gid in tf_go.items():
-        if gn.get(gid) != "NPC":
+        if gn.get(gid) != name:
             continue
         p, hop = father.get(tid, "0"), 0
         while p != "0" and hop < 5:
             if gn.get(tf_go.get(p, ""), "") == "Level":
                 return tid
             p, hop = father.get(p, "0"), hop + 1
-    raise RuntimeError("找不到 Level/NPC")
+    raise RuntimeError("找不到 Level/%s" % name)
+
+
+def fix_trigger_height(scene, target_y, dry):
+    """把 Level/Triggers 下每个触发器的 y 对齐到玩家可踩到的高度。
+
+    Jyx2Player.CanSee() 用 target.bounds.Contains(playerPos + dir*radius) 判定
+    能否交互；碰撞盒是 1x1x1，中心就在触发器的 Transform 位置。y 偏到玩家头顶
+    上方时，交互和 OnTriggerEnter 都不会发生。
+    """
+    path = os.path.join(MAPS, scene + ".unity")
+    text = read(path)
+    eol = "\r\n" if "\r\n" in text else "\n"
+    header, docs = split_docs(text)
+    triggers_tf = find_level_child_transform(docs, "Triggers")
+
+    kids = []
+    for cls, fid, stripped, raw in docs:
+        if cls != "4" or stripped:
+            continue
+        m = re.search(r"m_Father: \{fileID: %s\}" % triggers_tf, raw)
+        if m:
+            kids.append(fid)
+
+    if not kids:
+        print("  (Triggers 下没有子物体，跳过)")
+        return
+
+    PY = re.compile(r"(m_LocalPosition: \{x: -?[\d.eE+-]+, y: )(-?[\d.eE+-]+)(, z:)")
+    out, changed = [], 0
+    for cls, fid, stripped, raw in docs:
+        if cls == "4" and not stripped and fid in kids:
+            def repl(m):
+                nonlocal changed
+                old = float(m.group(2))
+                if abs(old - target_y) < 1e-4:
+                    return m.group(0)
+                changed += 1
+                return m.group(1) + fmt(target_y) + m.group(3)
+
+            raw = PY.sub(repl, raw)
+        out.append(raw)
+
+    result = header + "".join(out)
+    if dry:
+        print("  [dry] Triggers y -> %s：%d 个触发器需要调整" % (target_y, changed))
+    else:
+        write(path, result)
+        print("  [ok] Triggers y -> %s：调整了 %d 个触发器" % (target_y, changed))
 
 
 def collect_removals(docs, npc_tf):
@@ -288,6 +354,8 @@ def main():
     dry = "--apply" not in sys.argv
     for scene, npcs in LAYOUT.items():
         print("== %s" % scene)
+        if scene in TRIGGER_Y:
+            fix_trigger_height(scene, TRIGGER_Y[scene], dry)
         rebuild_scene(scene, npcs, dry)
 
 

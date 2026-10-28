@@ -96,8 +96,14 @@ python tools/moddev/jyx2mod.py run --follow
   `Assets/BuildSource/ModelCharacters/{BattleNpc,StoryNpc}/<预设>.prefab`（随游戏本体发布，
   JYX2 官方 MOD 也是这样引用的）。模板自带的 `Prefabs/*.prefab` 都是路人外形，不要拿来演主角。
 - `tools/shendiao/set_npc.py`：`LAYOUT` 里按「场景 -> [(角色名, 模型, 坐标, 朝向)]」重建地图 NPC。
-  重建时会清掉场景里旧的 `PrefabInstance` + stripped Transform，并把新实例的**所有** GameObject
-  推到 Layer 16（NPC 层），否则相机 culling mask 会把它们裁掉。坐标的 y 必须等于场景地面高度。
+  重建时会清掉场景里旧的 `PrefabInstance` + stripped Transform，并把新实例的所有 GameObject
+  统一到一个可见层（Layer 16），再重建 `Level/NPC` 的 `m_Children`。
+  **坐标必须等于地面高度，且必须与 `Level/Triggers` 里对应触发器的 x/z 重合**（见下）。
+- `tools/shendiao/fix_player.py`：把 MOD 的 `Prefabs/Player.prefab` 换成官方
+  `Assets/Prefabs/Player.prefab`（内嵌 `BuildSource/ModelCharacters/Player/Zhujue.prefab`），
+  同时把三张场景里 Player 实例 `m_Modifications` 的 target fileID 重映射到新 prefab。
+- `tools/shendiao/check_refs.py`：体检 MOD 内所有资源引用，区分
+  SELF / BUILD / GLOBAL / **OTHERMOD** / **MISSING**，导出前跑一次。
 - `tools/shendiao/gen_story.py`：`STORY` 字典里按事件 Id 写剧情；没写的事件自动生成「尚未探明」占位。
 - `tools/moddev/_scene_scan.py`：扫描场景里的交互点/NPC/传送点，编排剧情时用来查事件 Id。
 
@@ -109,7 +115,59 @@ python tools/moddev/jyx2mod.py run --follow
 > `jyx2mod.py new` 已修复此问题；老 MOD 用 `tools/shendiao/fix_guids.py` 补，
 > 用 `tools/shendiao/check_guids.py` 体检。
 
-## 第一章测试清单
+## 踩过的坑（改动前务必读）
+
+### 1. 主角"是空气"——模型资源必须在 base_assets 里
+
+`RoleHelper.FindPlayer()` 找的是 `Level/Player`，玩家可见的模型来自
+**`Level/Player` 实例所引用 prefab 内嵌的那个角色 prefab**，不是 `ModelFileKey`。
+
+导出 AssetBundle 时，只有「显式分配了 bundle 的资源」才会进包（`manifest` 的 Assets 列表里能看到）。
+`Prefabs/Taoliuyi.prefab` 依赖 `ModelsResource/陶六一/TaoLiuYi.fbx|.mat`，
+而 `ModelsResource/` 没有分配任何 bundle —— 于是 prefab 进包了、mesh 没进，
+`SkinnedMeshRenderer` 无网格，主角能走能触发剧情但**完全不可见**，且 Unity 不报错。
+
+正确做法：主角 prefab 内嵌模型一律指向 `Assets/BuildSource/ModelCharacters/**`
+（这些随 `base_assets` 发布，官方 JYX2 MOD 的 `08_dalunsi` 就是这么用的）。
+自建 `ModelsResource/` 只在编辑器里能看，导出后必丢。
+验证：`Export/shendiao/shendiao_mod` 里能搜到 `M2_P00_body`（Zhujue 的网格名）才说明 mesh 进包了。
+
+### 2. NPC"站在那但不能对话"——位置和触发器必须重合
+
+交互判定在 `Jyx2Player.CanSee()`：
+
+```csharp
+var isInTrigger = target.bounds.Contains(transform.position + targetDirection * _navMeshAgent.radius);
+```
+
+- `target` 是 `Level/Triggers/<事件Id>` 上的 BoxCollider（1×1×1，中心就是该物体的位置）
+- 玩家的 `NavMeshAgent` 必须真正站进这个盒子，且视线 120° 内、无遮挡
+
+所以：**把 NPC 摆到离触发器几米外的"好看位置"就等于没法对话**。
+`set_npc.py` 的 `LAYOUT` 坐标应当直接抄对应触发器的 x/z。
+
+另外 `LevelMaster.Start()` 会在运行时把 `Level/Triggers/*` 全部设为 `GameEvent` 层（Layer 28），
+**不要把 NPC 自己放到 28 层** —— 也不需要给 NPC 挂 `GameEvent`，事件都挂在 `Triggers` 上。
+
+### 3. 触发器高度写错会让所有交互静默失效
+
+00_mochuanlinju 的触发器曾被写成 `y=5.61`，而地面/玩家在 `y=5.0`：
+碰撞盒范围是 `[5.11, 6.11]`，`Contains(玩家位置)` 永远为 false，
+于是"按交互没反应""走进触发区不触发剧情"，全部静默失败。
+
+`01`/`02` 的触发器在 `y=0.5`、玩家 `y≈0.1`，盒 `[0,1]` 能覆盖玩家，所以那两张图正常。
+`set_npc.py` 的 `TRIGGER_Y` 就是用来把触发器 y 拉回地面的。
+
+### 4. 换 prefab 必须同步重映射场景的 `m_Modifications`
+
+场景里的 `PrefabInstance` 用 `target: {fileID: 内部对象id, guid: prefab guid}` 记录位置/名字覆盖。
+换成另一份 prefab 后内部 fileID 全变了，不重映射的话位置覆盖失效、主角被丢到 `(0,0,0)`。
+`fix_player.py` 按文档出现顺序自动配对生成映射表。
+
+还要注意：**不要把 override 指到 stripped（子 prefab 内部）对象上** ——
+一条 `m_IsActive: 0` 命中子 prefab 的根就会把整只模型关掉，`clean_stripped_mods()` 专门清理这种情况。
+
+
 
 1. 启动游戏 → MOD 选择界面选「神雕侠侣」→ 开局应在**嘉兴·铁枪庙**，主角名「杨过」。
 2. 原地触发开场独白（序章）。
