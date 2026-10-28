@@ -265,6 +265,30 @@ var isInTrigger = target.bounds.Contains(transform.position + targetDirection * 
 还要注意：**不要把 override 指到 stripped（子 prefab 内部）对象上** ——
 一条 `m_IsActive: 0` 命中子 prefab 的根就会把整只模型关掉，`clean_stripped_mods()` 专门清理这种情况。
 
+### 5. `Models/` 与 `Skills/` 必须显式打 AssetBundle 名，否则不进包
+
+这两个目录是**只被代码按名字加载**的：
+
+```csharp
+var allModels = await ResLoader.LoadAssets<ModelAsset>("Assets/Models/");
+Jyx2SkillDisplayAsset.All = await ResLoader.LoadAssets<Jyx2SkillDisplayAsset>("Assets/Skills/");
+```
+
+Unity 的 AssetBundle 只收「显式打了 bundle 名」+「被它们引用到的依赖」。
+没有任何 prefab / 场景引用 `ModelAsset`，所以它们既不显式、也不依赖 → **不进包**。
+运行时 `ModelAsset.Get(roleName)` 查不到会 `LogError` 然后**随机挑一个模型**，
+表现是「战斗里的敌人变成了别人」，而且没有显眼的报错。
+
+修法：给 `Models/*.asset.meta`、`Skills/*.asset.meta` 写上
+
+```yaml
+  assetBundleName: shendiao_mod
+  assetBundleVariant:
+```
+
+判断有没有打进去，看 **bundle 体积 / 构建日志的资源数**（shendiao 从 35.2MB、206 个资源
+变成 78.8MB、289 个资源），**不要**看 `*.manifest` 里的 Assets 列表 —— 它不列这些后来加进来的资源。
+
 
 
 1. 启动游戏 → MOD 选择界面选「神雕侠侣」→ 开局应在**嘉兴·铁枪庙**，主角名「杨过」。

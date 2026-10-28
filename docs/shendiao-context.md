@@ -1578,6 +1578,72 @@ audit 81_siguoya       -> 3 事件 0 问题（428 → 洪七公 0.8m）
 audit 80_jueqinggudi   -> 2 事件 0 问题（436 → 小龙女 0.4m）
 ```
 
+
+---
+
+# 2026-10-28 凌晨：打包（AB 导出）与「Models/Skills 不进包」的坑
+
+## 一、导出命令
+
+```powershell
+$env:JYX2_UNITY='C:\Program Files\Unity 2020.3.32f1c1\Editor\Unity.exe'
+python tools/moddev/jyx2mod.py unity shendiao
+```
+
+产物 `Export/shendiao/`：`shendiao_maps` 363.2 MB、`shendiao_mod` 78.8 MB（时间 23:45-23:46）。
+日志 `Logs/unity_build_shendiao.log` 里 `[Jyx2ModCli] 打包 shendiao_mod（289 个资源）`。
+
+## 二、坑：`Models/*.asset` / `Skills/*.asset` 默认**不会**进包
+
+第一次导出（23:39）时 `shendiao_mod` 只有 35.2 MB，manifest 里
+`Assets/Mods/shendiao/Models/*.asset` 一条都没有。原因是这两个目录里的资源
+**只被代码按名字查**，没有任何 prefab/场景引用它们：
+
+```csharp
+// Jyx2ResourceHelper.Init()
+var allModels = await ResLoader.LoadAssets<ModelAsset>("Assets/Models/");
+Jyx2SkillDisplayAsset.All = await ResLoader.LoadAssets<Jyx2SkillDisplayAsset>("Assets/Skills/");
+// ResLoader 会把 "assets/" 重写成 "assets/mods/<modId>/"（ResLoader.cs:242）
+```
+
+Unity 的 AssetBundle 只收「显式打了 bundle 名」+「它们引用到的依赖」。
+没人引用 `ModelAsset`，所以它们既不显式、也不依赖 → 不进包。
+运行时 `ModelAsset.Get(roleName)` 找不到就 `LogError` 然后
+`Tools.GetRandomElement(All)` —— **战斗里的敌人会变成别人**，而且不报显眼错误。
+
+修法：给这些 `.meta` 显式写上 bundle 名（47 个 Models + 29 个 Skills，共 76 个）：
+
+```yaml
+NativeFormatImporter:
+  ...
+  assetBundleName: shendiao_mod
+  assetBundleVariant:
+```
+
+改完 `jyx2mod check shendiao` 会显示 `AssetBundle: shendiao_maps(45), shendiao_mod(85)`，
+重新导出后 `shendiao_mod` 从 **35.2 MB 涨到 78.8 MB**（模型依赖被带进来），
+构建日志从 206 个资源变成 289 个 —— 这是「真的进包了」的直接证据。
+
+> 注意：Unity 生成的 `*.manifest` 文本里 **不会**列出这些后来加进来的资源
+> （它只写显式 + 部分依赖），所以别用「manifest 里有没有 Models」来判断，
+> 要看 bundle 体积和构建日志的资源数。
+
+## 三、还要在游戏里验的（明天）
+
+1. 战斗 206（斗神雕）/ 207（斗公孙止）/ 208（斗裘千仞）的敌人模型是否正常 ——
+   这三场分别依赖 `Models/神雕.asset`、`Models/公孙止.asset`、`Models/裘千仞.asset`。
+2. 战斗 200-205 的老战斗是否也受影响（它们依赖上一轮加的 `Models/丘处机.asset` 等，
+   这批这次一并打了 bundle）。
+3. 第二~六章新 NPC 的朝向 / 贴地 / 是否挡路。
+4. 华山 `81_siguoya` 崖顶、绝情谷底 `80` 的 NavMesh 可达性。
+5. **用新存档**（旧档 `WorldMapSaveData.areaMask=0` 会让 NavMesh 失效）。
+
+## 四、安装（供参考，未执行）
+
+```powershell
+python tools/moddev/jyx2mod.py install shendiao --src Export
+```
+
 ## 五、仍然没验证的（只能进游戏看）
 
 - 强行进谷底/崖顶的**可达性**：`81_siguoya` 的 `282/283` 在 y=0、`428` 在 y=0.8，
