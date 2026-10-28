@@ -56,7 +56,8 @@
 Configs/            配置表（Excel，改这里） + Lua/（生成物，勿手改）
 Lua/<eventId>.lua   剧情脚本，事件 Id 与场景 Level/Triggers 下的触发器一一对应
 Maps/GameMaps/      场景（.unity），大地图入口靠 GameObject 名字匹配 Map.Name
-Models/             角色模型资源
+Models/             角色模型资源（Models/<角色名>.asset，m_View 指向官方人物预设）
+Prefabs/            地图角色 prefab（模板遗留，场景里已改用 BuildSource 官方预设）
 Skills/             武功资源
 Terrain/ Timeline/ Skybox/ ...  美术资源（沿用模板）
 ```
@@ -67,6 +68,12 @@ Terrain/ Timeline/ Skybox/ ...  美术资源（沿用模板）
 # 1. 改配置表 / 剧情（推荐走脚本，见下）
 python tools/shendiao/apply_configs.py     # 地图/人物/武功/物品改名 + 大地图 GameObject 同步改名
 python tools/shendiao/gen_story.py         # 重排事件 Id、写剧情脚本、给未开发事件写占位
+
+# 1.5 角色模型（角色名 -> BuildSource 里的官方人物预设，一人一个，不共用）
+python tools/shendiao/add_model.py 杨过 BattleNpc/Yangguo        # 生成 Models/杨过.asset
+python tools/shendiao/fix_char_models.py                          # 把人物表的 =D{row} 公式落成模型名 + 校验模型存在
+python tools/shendiao/set_npc.py --dry                            # 查看地图 NPC 布置（角色/模型/坐标/朝向）
+python tools/shendiao/set_npc.py --apply                          # 重建场景里的 NPC 实例
 
 # 2. 导出 Excel -> Lua 并体检
 python tools/moddev/jyx2mod.py configs shendiao
@@ -85,6 +92,12 @@ python tools/moddev/jyx2mod.py run --follow
 ```
 
 - `tools/shendiao/apply_configs.py`：声明式表，改地图名/角色名/武功名/物品名只改字典即可。
+- `tools/shendiao/add_model.py`：给角色建 `Models/<角色名>.asset`，模型直接引用
+  `Assets/BuildSource/ModelCharacters/{BattleNpc,StoryNpc}/<预设>.prefab`（随游戏本体发布，
+  JYX2 官方 MOD 也是这样引用的）。模板自带的 `Prefabs/*.prefab` 都是路人外形，不要拿来演主角。
+- `tools/shendiao/set_npc.py`：`LAYOUT` 里按「场景 -> [(角色名, 模型, 坐标, 朝向)]」重建地图 NPC。
+  重建时会清掉场景里旧的 `PrefabInstance` + stripped Transform，并把新实例的**所有** GameObject
+  推到 Layer 16（NPC 层），否则相机 culling mask 会把它们裁掉。坐标的 y 必须等于场景地面高度。
 - `tools/shendiao/gen_story.py`：`STORY` 字典里按事件 Id 写剧情；没写的事件自动生成「尚未探明」占位。
 - `tools/moddev/_scene_scan.py`：扫描场景里的交互点/NPC/传送点，编排剧情时用来查事件 Id。
 

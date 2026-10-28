@@ -17,6 +17,8 @@ ASSETS = os.path.join(PROJECT, "Assets")
 SHENDIAO = os.path.join(ASSETS, "Mods", "shendiao")
 
 GUID_RE = re.compile(r"guid: ([0-9a-fA-F]{32})")
+# Unity 自带的内置资源 GUID：前 16 位 0，之后 e/f 开头其余全 0（默认材质、内置着色器等）
+BUILTIN_RE = re.compile(r"^0{16}[0-9a-f]0{15}$")
 META_GUID_RE = re.compile(r"^guid: ([0-9a-fA-F]{32})\s*$", re.M)
 
 
@@ -76,8 +78,8 @@ def main() -> int:
             checked += 1
             for m in GUID_RE.finditer(text):
                 guid = m.group(1).lower()
-                if guid.strip("0") == "":
-                    continue  # Unity 内置资源（default resources）都用全 0 GUID
+                if guid.strip("0") == "" or BUILTIN_RE.match(guid):
+                    continue  # Unity 内置资源（default/extra resources）
                 if guid not in known:
                     bad.setdefault(os.path.relpath(path, SHENDIAO), set()).add(guid)
 
