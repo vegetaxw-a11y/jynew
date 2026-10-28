@@ -209,3 +209,46 @@ else if (nextMap.Tags.Contains("WORLDMAP")) para.triggerName = curMap.Name;
 3. 原 20 张渡城场景仍在包内占体积，确认无用后删除
 4. 桃花岛距第 13 站 288 单位，若嫌远可换成 `23_hongqigongju`（210,168，紧邻古墓一带）
 
+### 在 Unity 编辑器里看地图（操作手册）
+
+工程已装 Unity **2020.3.32f1c1（中国版，带 c1 后缀）**，路径 `C:\Program Files\Unity 2020.3.32f1c1\Editor\Unity.exe`；
+Hub 里选错成 `2020.3.32f1` 会报版本不匹配。
+
+1. Hub → Add → `c:\Games\jynew\jyx2` → 打开
+2. Project 窗口 `Assets → Mods → shendiao → Maps → GameMaps → 双击 1000_daditu`
+3. 选中 `CameraGroup/CM vcam1` → 菜单 **`GameObject → Align View to Selected`**
+   → Scene 视图变成游戏视角（45° 俯角，上北右东）
+
+快捷键（2020.3 默认值，官方 `SceneViewNavigation` 页核对）：
+
+| 功能 | 键 |
+| --- | --- |
+| 飞（Flythrough） | 按住右键 + `WASD` + `QE`（升/降）+ `Shift` 加速 |
+| 环绕 / 缩放 | `Alt`+左键拖 / 滚轮（或 `Alt`+右键拖） |
+| 飞到选中物体 | 鼠标悬停在 Scene 视图上按 `F`（`Edit > Frame Selected`） |
+| 锁定跟随选中 | `Shift+F` |
+| 顶视图 | 点 Scene Gizmo 的 Y 轴锥形臂 |
+
+**易错点（已踩过）**：
+
+- `Ctrl+P` 是 **Play 模式**，不是搜索 —— 看地图时按了会把场景交给游戏脚本，直接传送
+- `Ctrl+Shift+F` 是 `Align with View`（**物体 → 视图**），方向与想要的反了，会把 `CM vcam1` 挪位；
+  `Align View to Selected` **没有默认快捷键**，只能点菜单
+- `F` 生效要求鼠标在 Scene 视图内，在 Hierarchy 上按无效
+- **Unity 顶视图是反的**：Z 轴朝上而 `+Z=南`、`+X=西`，画面整体旋转 180°（上南下北、右西左东）；
+  只有对齐 `CM vcam1` 后才是上北右东
+- 看场景不要 `Ctrl+S`（会改写 `.unity` 产生浮点/GUID 漂移）；开编辑器时不要同时跑 `jyx2mod.py unity`（抢工程锁）
+
+不开编辑器查层级：`python tools/shendiao/inspect_scene_tree.py <scene.unity> --depth 3 [--filter 未开放]`
+
+大地图实测层级（332 个 GameObject / 79 个地名触发器）：
+
+```
+Main Camera  ·  Level(PlayerBoat/Bake/Dynamic/FX/Triggers)  ·  CameraGroup/CM vcam1
+LevelMasterBooster  ·  [Decal Root]  ·  cankao(参考图)  ·  BigMapNameDrawer
+```
+
+`62_pomiao` 的 `Level/Triggers` 下可直观看到残留的 JYX2 story id `0/3/4/5/6/10`
+与 `Timeline/[Timeline]ka564_小虾米破庙挖坟` 过场 —— 即"串戏"待办的具体位置。
+
+
