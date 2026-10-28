@@ -70,6 +70,7 @@ python tools/shendiao/gen_story.py         # 重排事件 Id、写剧情脚本�
 
 # 2. 导出 Excel -> Lua 并体检
 python tools/moddev/jyx2mod.py configs shendiao
+python tools/shendiao/check_story.py       # 剧情脚本引用校验（人物/物品/武功/战斗 Id、goto 配对）
 python tools/moddev/jyx2mod.py check shendiao
 
 # 3. 导出 AssetBundle（首次/工程本体资源变动时才需要 base，慢约 10 分钟）
@@ -77,6 +78,9 @@ python tools/moddev/jyx2mod.py unity shendiao --output Export --no-base
 
 # 4. 安装到游戏
 python tools/moddev/jyx2mod.py install shendiao --src Export
+
+# 5. 直接启动游戏测试（可选）
+python tools/moddev/jyx2mod.py run --follow
 ```
 
 - `tools/shendiao/apply_configs.py`：声明式表，改地图名/角色名/武功名/物品名只改字典即可。
