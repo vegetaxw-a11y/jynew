@@ -71,6 +71,7 @@ python tools/shendiao/gen_story.py         # 重排事件 Id、写剧情脚本�
 # 2. 导出 Excel -> Lua 并体检
 python tools/moddev/jyx2mod.py configs shendiao
 python tools/shendiao/check_story.py       # 剧情脚本引用校验（人物/物品/武功/战斗 Id、goto 配对）
+python tools/shendiao/check_guids.py       # 资源引用校验（模型/NPC 隐形就是这里断了）
 python tools/moddev/jyx2mod.py check shendiao
 
 # 3. 导出 AssetBundle（首次/工程本体资源变动时才需要 base，慢约 10 分钟）
@@ -89,6 +90,11 @@ python tools/moddev/jyx2mod.py run --follow
 
 > Excel 注意：工程里的 `Excel.dll` 是老版 ExcelDataReader，只认 sharedStrings，
 > 所以 xlsx 必须用 xlsxwriter 重写（`apply_configs.py` 已处理），不能直接用 openpyxl 保存。
+
+> GUID 注意：从模板复制 MOD 时，`.meta` 换新 GUID 的同时**必须**把资源文件里对这些
+> GUID 的引用一起换掉，否则模型变空气、NPC 隐形、贴图丢失，且 Unity 不报任何错。
+> `jyx2mod.py new` 已修复此问题；老 MOD 用 `tools/shendiao/fix_guids.py` 补，
+> 用 `tools/shendiao/check_guids.py` 体检。
 
 ## 第一章测试清单
 

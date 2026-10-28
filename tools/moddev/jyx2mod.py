@@ -478,10 +478,16 @@ def copy_template(src: str, dst: str, with_buildsource: bool) -> int:
     return sum(len(files) for _r, _d, files in os.walk(dst))
 
 
-def rewrite_metas(mod_dir: str, old_id: str, new_id: str) -> tuple[int, int]:
-    """给所有 .meta 换新 GUID，并把模板的 AssetBundle 名换成新 MOD 的"""
+def rewrite_metas(mod_dir: str, old_id: str, new_id: str) -> tuple[int, int, dict]:
+    """给所有 .meta 换新 GUID，并把模板的 AssetBundle 名换成新 MOD 的
+
+    返回 (换掉的 GUID 数, 改掉的 bundle 名数, 旧 GUID -> 新 GUID 映射)。
+    映射要交给 rewrite_guid_refs 去更新资源文件里的引用，否则 MOD 内部
+    引用会全部指回模板，打包后模型/NPC 全部加载不出来。
+    """
     bundles = {f"{old_id}_mod": f"{new_id}_mod", f"{old_id}_maps": f"{new_id}_maps"}
     guid_count = bundle_count = 0
+    mapping: dict[str, str] = {}
     for dirpath, _dirs, files in os.walk(mod_dir):
         for name in files:
             if not name.endswith(".meta"):
@@ -493,7 +499,9 @@ def rewrite_metas(mod_dir: str, old_id: str, new_id: str) -> tuple[int, int]:
 
             m = re.search(r"^guid: ([0-9a-fA-F]{32})\s*$", text, re.M)
             if m:
-                text = text[:m.start(1)] + new_guid() + text[m.end(1):]
+                new = new_guid()
+                mapping[m.group(1).lower()] = new.lower()
+                text = text[:m.start(1)] + new + text[m.end(1):]
                 guid_count += 1
 
             m = re.search(r"^(  assetBundleName: ?)(\S+)\s*$", text, re.M)
@@ -505,7 +513,49 @@ def rewrite_metas(mod_dir: str, old_id: str, new_id: str) -> tuple[int, int]:
 
             if text != original:
                 write_text(path, text, crlf=crlf)
-    return guid_count, bundle_count
+    return guid_count, bundle_count, mapping
+
+
+# 会被 Unity 当 YAML 文本解析、里面带 guid 引用的资源类型
+REF_TEXT_EXTS = {
+    ".asset", ".unity", ".prefab", ".mat", ".controller", ".anim",
+    ".overridecontroller", ".playable", ".mixer", ".physicmaterial",
+    ".spriteatlas", ".rendertexture", ".shadervariants", ".terrainlayer",
+    ".lighting", ".flare", ".cubemap", ".guiskin", ".fontsettings",
+    ".preset", ".brush", ".signal",
+}
+GUID_REF_RE = re.compile(r"guid: ([0-9a-fA-F]{32})")
+
+
+def rewrite_guid_refs(mod_dir: str, mapping: dict) -> int:
+    """把资源文件里对旧 GUID 的引用换成新 GUID，返回替换处数"""
+    if not mapping:
+        return 0
+    replaced_total = 0
+    for dirpath, _dirs, files in os.walk(mod_dir):
+        for name in files:
+            if name.endswith(".meta"):
+                continue
+            if os.path.splitext(name)[1].lower() not in REF_TEXT_EXTS:
+                continue
+            path = os.path.join(dirpath, name)
+            text = read_text(path)
+            if "guid: " not in text:
+                continue
+            crlf = "\r\n" in text
+
+            def repl(m: re.Match) -> str:
+                nonlocal replaced_total
+                new = mapping.get(m.group(1).lower())
+                if new:
+                    replaced_total += 1
+                    return f"guid: {new}"
+                return m.group(0)
+
+            new_text = GUID_REF_RE.sub(repl, text)
+            if new_text != text:
+                write_text(path, new_text, crlf=crlf)
+    return replaced_total
 
 
 def rewrite_mod_setting(path: str, *, mod_id: str, name: str, author: str, desc: str, native: bool) -> None:
@@ -555,13 +605,15 @@ def cmd_new(args) -> int:
     log(f"从 {template} 复制到 {target} ...")
     file_count = copy_template(template_dir, target, args.with_buildsource)
 
-    guid_count, bundle_count = rewrite_metas(target, template.lower(), mod_id)
+    guid_count, bundle_count, guid_map = rewrite_metas(target, template.lower(), mod_id)
+    ref_count = rewrite_guid_refs(target, guid_map)
     rewrite_mod_setting(
         os.path.join(target, "ModSetting.asset"),
         mod_id=mod_id, name=name, author=author, desc=desc, native=args.native,
     )
 
-    ok(f"创建完成：{file_count} 个文件，重写 {guid_count} 个 GUID、{bundle_count} 处 AssetBundle 名")
+    ok(f"创建完成：{file_count} 个文件，重写 {guid_count} 个 GUID、{bundle_count} 处 AssetBundle 名、"
+       f"{ref_count} 处资源引用")
     log("")
     log("接下来的步骤：")
     log(f"  1) 改配置表：{os.path.join(target, 'Configs')}")

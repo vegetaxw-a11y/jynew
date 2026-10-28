@@ -89,10 +89,41 @@ def scan(path, guids):
         elif kind == "MapChest":
             events.append((p, "CHEST", "-", "-"))
 
-    for gid in go_name:
-        p = path_of(gid)
-        if p.startswith("Level/NPC/") and p.count("/") == 2:
-            npcs.append(go_name[gid])
+    # NPC 通常是 PrefabInstance 实例，它在场景里的子物体是 stripped 文档、没有
+    # m_Name，靠遍历 m_Name 会全部漏掉。改成顺着 Level/NPC 的 m_Children 找，
+    # 拿不到名字就回落到 prefab 资源名。
+    npc_tf = None
+    for tid, body in docs.get("4", {}).items():
+        gid = tf_go.get(tid)
+        if gid and go_name.get(gid) == "NPC" and path_of(gid).endswith("Level/NPC"):
+            npc_tf = tid
+            break
+
+    def prefab_name_of(go_id: str) -> str:
+        body = docs.get("1", {}).get(go_id, "")
+        m = re.search(r"m_PrefabInstance: \{fileID: (-?\d+)\}", body)
+        if not m:
+            return "?"
+        inst = docs.get("1001", {}).get(m.group(1), "")
+        m = re.search(r"m_SourcePrefab: .*guid: ([0-9a-fA-F]{32})", inst)
+        return "prefab:" + (m.group(1)[:8] if m else "?")
+
+    def prefab_of_transform(tid: str) -> str:
+        """stripped Transform 没有 m_GameObject 字段，只能顺着 PrefabInstance 找源资源"""
+        body = docs.get("4", {}).get(tid, "")
+        m = re.search(r"m_PrefabInstance: \{fileID: (-?\d+)\}", body)
+        if not m:
+            return "?"
+        inst = docs.get("1001", {}).get(m.group(1), "")
+        m = re.search(r"m_SourcePrefab: .*guid: ([0-9a-fA-F]{32})", inst)
+        return "prefab:" + (m.group(1)[:8] if m else "?")
+
+    if npc_tf:
+        children = re.findall(r"- \{fileID: (-?\d+)\}", docs["4"][npc_tf].split("m_Father")[0])
+        for child in children:
+            gid = tf_go.get(child)
+            name = go_name.get(gid) if gid else None
+            npcs.append(name if name and name != "?" else prefab_of_transform(child))
 
     return events, npcs
 
