@@ -11,44 +11,90 @@
 
 | 章节 | 内容 | 状态 |
 | --- | --- | --- |
-| 序章 | 嘉兴·铁枪庙：孤儿杨过、郭靖到访 | ✅ 已实现 |
-| 第一章 | 终南山·重阳宫：拜师赵志敬、受欺、孙婆婆赠药 | ✅ 已实现 |
-| 第一章 | 终南山·活死人墓：小龙女、李莫愁、孙婆婆之死、玉女心经 | ✅ 已实现 |
-| 第二章 | 大胜关英雄会 | ⬜ 待开发 |
-| 第三章 | 绝情谷（情花、公孙止） | ⬜ 待开发 |
-| 第四章 | 襄阳·断臂与玄铁重剑 | ⬜ 待开发 |
-| 第五章 | 重阳宫大战、十六年之约 | ⬜ 待开发 |
-| 第六章 | 十六年后·神雕侠 | ⬜ 待开发 |
+| 序章 | 嘉兴·铁枪庙：孤儿杨过、老庙祝、郭靖黄蓉上香认亲 | ✅ 已实现 |
+| 第一章 | 桃花岛：黄蓉只教读书、郭芙与武氏兄弟欺凌、欧阳锋传蛤蟆功、柯镇恶逐客 | ✅ 已实现 |
+| 第一章 | 终南山·重阳宫：鹿清笃守门、郭靖托付丘处机、赵志敬收徒、全真门下受欺 | ✅ 已实现 |
+| 第一章 | 活死人墓：孙婆婆护杨过而死、小龙女收徒、寒玉床、斗李莫愁、玉女心经 | ✅ 已实现 |
+| 第二章 | 神雕山洞：断臂入洞、神雕试剑、剑冢三剑、玄铁重剑 | ✅ 已实现 |
+| 第三章 | 绝情谷：情花、公孙止、樊一翁、裘千尺 | ⬜ 待开发 |
+| 第四章 | 南国旧友：程英居、铁掌山、黑龙潭、一灯居、百花谷 | ⬜ 待开发 |
+| 第五章 | 华山绝顶：洪七公与欧阳锋、思过崖 | ⬜ 待开发 |
+| 第六章 | 绝情谷底：十六年之约、谷底重逢 | ⬜ 待开发 |
 
-**当前可玩范围**：嘉兴·铁枪庙 → 终南山·重阳宫 → 终南山·活死人墓（第一章完）。
+> MOD 可进入的地图只有 14 张（见「世界地图」），**没有「大胜关」「襄阳」**，
+> 原著这两段（英雄会、断臂于襄阳城外）用旁白带过；章节顺序按现有地图重排。
+
+**当前可玩范围（原著第二~四回）**：
+破庙（嘉兴·铁枪庙）→ 桃花岛 → 重阳宫 → 古墓（活死人墓）（第一章完）。
+
+### 第一章剧情锚点（Lua → 场景 → 原著）
+
+| 场景 | EventId | 剧情 | 原著 |
+| --- | --- | --- | --- |
+| `62_pomiao` | 557 | 进庙独白（铁枪庙、破窑） | 第二回·故人之子 |
+| `62_pomiao` | 559 | 老庙祝讲杨康旧事，指往佛堂 | 第二回（原创衔接） |
+| `62_pomiao` | 558 | 供桌取【铁枪残片】 | 第二回（原创道具） |
+| `62_pomiao` | 1001 | 郭靖认亲：「你爹可是叫杨康？」 | 第二回 |
+| `62_pomiao` | 1002 | 黄蓉试探：「我怕你学得太快」 | 第二回 |
+| `75_taohuadao` | 465 | 登岛 | 第二回末 |
+| `75_taohuadao` | 466 | 黄蓉只教读书；事后郭靖言明送终南山的缘由 | 第二回末 / 第三回首 |
+| `75_taohuadao` | 923 | 欧阳锋收义子、传蛤蟆功 | 第二回 |
+| `75_taohuadao` | 922 | 郭芙与武敦儒欺凌，杨过以蛤蟆功反击 | 第二回 |
+| `19_chongyanggong` | 900 | 山门外郭靖交代；事毕辞别「别学你爹」 | 第三回·求师终南 |
+| `19_chongyanggong` | 455 | 鹿清笃拦门，郭靖出面，弟子让路 | 第三回 |
+| `19_chongyanggong` | 457 | 丘处机认出郭靖，郭靖托孤 | 第三回 |
+| `19_chongyanggong` | 901 | 赵志敬收徒，只教口诀不教招式，借故责罚 | 第四回·全真门下 |
+| `19_chongyanggong` | 456 | 师兄弟讥讽「你爹是个认贼作父的」 | 第四回 |
+| `18_gumu` | 902 | 孙婆婆护杨过、被全真掌力所伤、小龙女收徒 | 第四回 |
+| `18_gumu` | 442 | 寒玉床 | 第五回·玉女心经 |
+| `18_gumu` | 217 | 李莫愁闯墓，孙婆婆之死的余波（斗李莫愁） | 第五回 |
+| `18_gumu` | 219 | 石棺侧壁刻玉女心经，学会「玉女剑法」「玉女素心剑」，**第一章完** | 第五回 |
+| `07_shandong` | 389 | 断臂后逃入山洞（进入触发） | 第二十五回·内伤 |
+| `07_shandong` | 390 | 洞中爪印（原创衔接，指向洞底） | 原创 |
+| `07_shandong` | 837 | 神雕衔木剑逼杨过拆招（斗神雕） | 第二十五回 |
+| `07_shandong` | 838 | 洞底白骨遗刻「仰慕剑魔遗风」 | 原创 |
+| `07_shandong` | 836 | 剑冢石壁「剑魔独孤求败…埋剑于斯」，得【玄铁重剑】、学「玄铁剑法」 | 第二十六回·神雕重剑 |
+| `07_shandong` | 394 | 练重剑有成，**第二章完** | 第二十六回 |
+
+> 战斗：`922` → 战斗 **202**（斗武氏兄弟）、`901` → **201**（斗赵志敬）、
+> `902` → **200**（斗鹿清笃，孙婆婆当队友）、`217` → **203**（斗李莫愁）、
+> `837` → **206**（斗神雕）。另有 204 斗欧阳锋 / 205 斗全真群道 备用。
+> 全部是「赢了多加经验、输了照常推进」—— 原著这几仗本来就是挨打。
+>
+> 剧情 flag 链：`序章完成 → 桃花岛学艺 → 蛤蟆功 → 郭芙欺凌 → 离岛赴终南 →
+> 入全真 → 拜入全真 → 赵志敬收徒 → 赵志敬为难 → 决意出走 → 孙婆婆相救 →
+> 击退李莫愁 → 玉女心经 → 第一章完成 → 入神雕洞 → 洞中爪印 → 神雕试剑 →
+> 白骨遗刻 → 得玄铁重剑 → 第二章完成`。
+> 每个脚本都用 `GetFlagInt` 自查前置条件，跳场景也不会卡死。
+
 
 ## 世界地图
 
-大地图 `1000_daditu` 上的地名已改为神雕侠侣的地理，除下列三处外，其余地点进
-入后会提示「此地尚未探明」，留给后续章节：
+大地图 `1000_daditu` 上的地名已改为神雕侠侣的地理。**以 `Configs/Lua/MapConfig.lua` 为准**，
+当前实际生效的是下列 14 个地点：
 
-| Map Id | 场景文件 | 新地名 | 状态 |
+| Map Id | 场景文件 | 地名 | 备注 |
 | --- | --- | --- | --- |
-| 0 | 00_mochuanlinju | 嘉兴·铁枪庙 | ✅ 序章 |
-| 1 | 01_moqiaoshanzhuang | 终南山·重阳宫 | ✅ 第一章 |
-| 2 | 02_wanzhushuyuan | 终南山·活死人墓 | ✅ 第一章 |
-| 3 | 03_chaensi | 陆家庄 | ⬜ |
-| 4 | 04_zhongmingge | 襄阳城 | ⬜ |
-| 5 | 05_yilinlou | 临安·醉仙楼 | ⬜ |
-| 6 | 06_jiangjunfu | 襄阳·安抚使府 | ⬜ |
-| 7 | 07_yingsugu | 绝情谷 | ⬜ |
-| 8 | 08_gezilou | 风陵渡 | ⬜ |
-| 9 | 09_niutouling | 华山之巅 | ⬜ |
-| 10 | 10_binhumaolu | 桃花岛 | ⬜ |
-| 11 | 11_shuiguotan | 大胜关 | ⬜ |
-| 12 | 12_suixiantang | 终南山·后山 | ⬜ |
-| 13 | 13_yelanggu | 万兽山庄 | ⬜ |
-| 14 | 14_yelangdong | 黑沼 | ⬜ |
-| 15 | 15_gezilongtai | 断肠崖 | ⬜ |
-| 16 | 16_heixionggu | 蒙古大营 | ⬜ |
-| 17 | 17_luojibinghang | 牛家村 | ⬜ |
-| 18 | 18_wumingku | 独孤剑冢 | ⬜ |
-| 19 | 19_wujifang | 重阳宫·藏经阁 | ⬜ |
+| 0 | `62_pomiao` | 破庙 | 序章，`Tags=START:0` 出生点 |
+| 1 | `19_chongyanggong` | 重阳宫 | 第一章 |
+| 2 | `18_gumu` | 古墓 | 第一章，`Tags=POINTLIGHT` |
+| 3 | `07_shandong` | 神雕山洞 | `Tags=POINTLIGHT` |
+| 4 | `22_jueqinggu` | 绝情谷 | |
+| 5 | `80_jueqinggudi` | 绝情谷底 | |
+| 6 | `20_baihuagu` | 百花谷 | |
+| 7 | `57_huashanpai` | 华山派 | |
+| 8 | `81_siguoya` | 思过崖 | |
+| 9 | `48_tiezhangshan` | 铁掌山 | |
+| 10 | `21_heilongtan` | 黑龙潭 | `Tags=NONAVAGENT`，大地图不出导航 |
+| 11 | `47_yidengju` | 一灯居 | |
+| 12 | `45_chengyingju` | 程英居 | |
+| 13 | `75_taohuadao` | 桃花岛 | |
+| 1000 | `1000_daditu` | 大地图 | `Tags=WORLDMAP`，`TransportToMap=-1` |
+
+> `100–164` 是**占位行**：`MapScene` 一律指向 `62_pomiao`，`Name` 带「〔未开放〕」后缀，
+> `EnterCondition=1`。注意 **`EnterCondition` 目前在引擎里没有任何读取点**
+> （`GameRuntimeData.GetSceneEntraceCondition` 只有定义、无调用），`1` 纯属人工标记，
+> 真正让它"进不去"的是大地图上对应触发器的目标场景。
 
 ## 目录结构
 
@@ -67,7 +113,8 @@ Terrain/ Timeline/ Skybox/ ...  美术资源（沿用模板）
 ```bash
 # 1. 改配置表 / 剧情（推荐走脚本，见下）
 python tools/shendiao/apply_configs.py     # 地图/人物/武功/物品改名 + 大地图 GameObject 同步改名
-python tools/shendiao/gen_story.py         # 重排事件 Id、写剧情脚本、给未开发事件写占位
+python tools/shendiao/gen_story.py         # 重排事件 Id + 补缺失占位（默认**不覆盖**已有脚本，--force 才按 STORY 重建）
+python tools/shendiao/fill_missing_story.py --apply   # 只补「场景挂了事件、Lua 目录没脚本」的空洞
 
 # 1.5 角色模型（角色名 -> BuildSource 里的官方人物预设，一人一个，不共用）
 python tools/shendiao/add_model.py 杨过 BattleNpc/Yangguo        # 生成 Models/杨过.asset
@@ -104,7 +151,29 @@ python tools/moddev/jyx2mod.py run --follow
   同时把三张场景里 Player 实例 `m_Modifications` 的 target fileID 重映射到新 prefab。
 - `tools/shendiao/check_refs.py`：体检 MOD 内所有资源引用，区分
   SELF / BUILD / GLOBAL / **OTHERMOD** / **MISSING**，导出前跑一次。
-- `tools/shendiao/gen_story.py`：`STORY` 字典里按事件 Id 写剧情；没写的事件自动生成「尚未探明」占位。
+- `tools/shendiao/gen_story.py`：`STORY` 字典里按事件 Id 写剧情；没写的自动生成占位。
+  **默认不覆盖已存在的脚本**（第一章起剧情是手写的，STORY 里留的是旧草稿），
+  确实要按 STORY 重建时加 `--force`。
+- `tools/shendiao/fill_missing_story.py`：扫场景里所有 GameEvent 的三种事件 Id，
+  凡是 Lua 目录里没有对应脚本的，生成「此处暂无可叙之事」占位。缺脚本不会锁死事件系统，
+  但那一个滑块点下去毫无反应，玩家会以为游戏坏了。
+- `tools/shendiao/patch_scene_events.py`：批量修 GameEvent 的 layer / IsTrigger /
+  EventTargets / 触发器位置 / 碰撞盒尺寸，`--set-event <物体>=<新Id>` 可直接改事件 Id。
+- `tools/shendiao/audit_scene_npcs.py`：**NPC 在场性审计**。逐个场景列出 GameEvent 的
+  target 判定（`OK` / `FAR` / 空），并交叉比对「Lua 里 `Talk(60,…)` 点到的人，场上到底有没有」。
+  `--all --quiet` 只看有问题的场景。位置以触发器为圆心、`--near`（默认 3m）为半径算距离。
+- `tools/shendiao/add_prefab.py`：**往场景里插任意 prefab 实例**，不需要模板场景里已有同款实例
+  （`add_scene_npc.py` 的硬限制）。直接读 prefab 的根 GameObject/Transform fileID，手写
+  `PrefabInstance` + stripped Transform + stripped GameObject 三块并挂进父节点 `m_Children`，
+  末尾打印 **stripped GameObject fileID** —— 那就是 `m_EventTargets` 该填的值。默认 dry-run。
+- `tools/shendiao/edit_instance.py`：改场景里 prefab 实例的显示名 / 局部坐标 / 朝向
+  （写进 `m_Modifications` 覆盖）。`--list` 列出所有实例的 instanceID、名字、坐标。
+- `tools/shendiao/lint_lua.py`：**剧情脚本语法体检**（工程里没有 lua/luac，`jyx2mod check`
+  只查 `Configs/Lua` 的 7 个生成文件）。查块关键字配平、字符串/注释闭合、括号配平、
+  代码里的全角标点、`Talk` 的人物 Id 与 `TryBattle` 的战斗 Id 是否在表里。`--battle` 开后者。
+- `tools/shendiao/check_scene_fileids.py`：**场景内部 fileID 完整性**。上面几个工具都是直接改
+  YAML 文本，写错一个 fileID 要等 Unity 打开才发现；这里查 `m_TransformParent` / `m_Father` /
+  `m_Children` / stripped 的 `m_PrefabInstance` 是否都能解析、有没有重复 `!u!x &id`。
 - `tools/moddev/_scene_scan.py`：扫描场景里的交互点/NPC/传送点，编排剧情时用来查事件 Id。
 
 > Excel 注意：工程里的 `Excel.dll` 是老版 ExcelDataReader，只认 sharedStrings，
@@ -176,11 +245,15 @@ var isInTrigger = target.bounds.Contains(transform.position + targetDirection * 
 5. 走到地图边缘 `Leave` 点回大地图 → 前往「终南山·重阳宫」。
 6. 与郭靖对话 → 与赵志敬对话（拜师）→ 与鹿清笃对话（可选择动手/忍让，有必败战）→ 与孙婆婆对话（得到提示「后山石门夜里不关」）。
 7. 回大地图 → 前往「终南山·活死人墓」。
-8. 孙婆婆 → 小龙女（初见）→ 李莫愁（孙婆婆之死）→ 小龙女收留（学「全真剑法」）→ 寒玉床 → 李莫愁战斗（可胜可败）→ 玉女心经（学会「玉女剑法」「玉女素心剑」，**第一章完**）。
+8. 孙婆婆 → 小龙女（初见）→ 李莫愁（孙婆婆之死）→ 小龙女收留（学「全真剑法」）→ 寒玉床 → 李莫愁闯墓（斗李莫愁，可胜可败）→ 石棺侧壁的玉女心经（学会「玉女剑法」「玉女素心剑」，**第一章完**）。
+9. 回大地图 → 前往「终南山·神雕山洞」。
+10. 进洞独白（断臂）→ 洞中爪印 → 大雕（斗神雕）→ 洞底白骨 → 剑冢石壁（得【玄铁重剑】、学「玄铁剑法」）→ 独孤求败遗蜕前练剑（**第二章完**）。
 
 ## 已知限制
 
 - 场景地形、建筑、NPC 外观沿用模板资源，只有地名/人名/剧情是神雕的；头像亦未替换。
 - 女性模型只有模板自带的三个，部分女角色共用同一模型。
-- 2 号之后的地点是占位内容（提示「此地尚未探明」），留给后续章节填充。
+- 第三章之后的地点是占位内容（提示「此地尚未探明」），留给后续章节填充。
+- `03 神雕山洞` 起的新章节只用旁白 + 触发器目标（大雕、石棺、白骨）交互，没有可对话的活人 NPC。
+- 旧存档里 `WorldMapSaveData.areaMask = 0` 会让 NavMesh 失效（人物看得见却走不动），改动场景后请用新存档验证。
 - MOD 目录下不能放 `Scripts/`：会和工程里 `SAMPLE/Scripts` 的同名类冲突导致 Unity 编译失败。

@@ -153,7 +153,16 @@ public class DebugPanel : MonoBehaviour,IJyx2_InputContext
 
     public void OnUpdate()
     {
-        if(Input.GetKeyUp(KeyCode.BackQuote)) 
+        // 注意：面板开关不在这里处理。
+        // InputContextManager.Update() 只在 CurrentContext.CanUpdate 为 true 时才调 OnUpdate，
+        // 而本组件的 CanUpdate 又是 _isDebugPanelOn —— 若在此处监听按键，面板没打开时
+        // 永远收不到按键，形成死锁。改由下面的 Update() 常驻监听。
+    }
+
+    private void Update()
+    {
+        // 常驻监听 `（BackQuote）键，面板关闭时也能唤醒
+        if (Input.GetKeyUp(KeyCode.BackQuote))
         {
             DebugPanelSwitch();
         }

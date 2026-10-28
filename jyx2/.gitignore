@@ -81,3 +81,6 @@ output
 
 #wps temp files
 ~$*
+
+# Unity 出包产物：BuildPipeline.BuildAssetBundles 会把全量 AB 写进 StreamingAssets
+/Assets/StreamingAssets/*

@@ -4,6 +4,8 @@
 
 - Unity **2020.3.32f1**，工程在 `jyx2/`，可执行 MOD：`jyx2/Assets/Mods/{JYX2,SAMPLE,xiastart_roguelike,shendiao}`
 - 命令行工具在 `tools/moddev/`（见 `tools/moddev/README.md`），场景/资源探针在 `tools/shendiao/`
+- **动手前先读 `docs/jyx2-mod-guide.md`**：MOD 体系全貌、加载链路、27 条已踩坑、未来风险、排查决策树。
+  shendiao 的具体进度与决策见 `docs/shendiao-context.md`
 - 根目录的 `_wm_*.txt`、`_st.txt` 等是**临时抓取产物**，不是源码，可随时删除
 
 ## 读文件：大文件必须切段

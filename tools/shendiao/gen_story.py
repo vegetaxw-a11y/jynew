@@ -605,8 +605,15 @@ def clear_old_lua() -> int:
     return removed
 
 
-def write_lua(event_id: int, code: str) -> None:
+def write_lua(event_id: int, code: str, force: bool = False) -> bool:
+    """写一个事件脚本。默认**不覆盖**已存在的脚本 —— 第一章起的剧情是手写的，
+    而 STORY 字典里留的还是旧版草稿，一旦无脑覆盖就会把剧本打回原形。
+    确实要从 STORY 重建时加 --force。"""
     path = os.path.join(LUA_DIR, "%d.lua" % event_id)
+    if not force and os.path.exists(path):
+        with open(path, encoding="utf-8") as fh:
+            if fh.read().strip() != code.strip("\n").strip():
+                return False
     with open(path, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(code.strip("\n") + "\n")
     meta = path + ".meta"
@@ -625,6 +632,7 @@ def write_lua(event_id: int, code: str) -> None:
         )
         with open(meta, "w", encoding="utf-8", newline="\n") as fh:
             fh.write(content)
+    return True
 
 
 def collect_event_ids() -> set:
@@ -642,6 +650,7 @@ def collect_event_ids() -> set:
 
 
 def main() -> int:
+    force = "--force" in sys.argv[1:]
     if not os.path.isdir(LUA_DIR):
         print(f"找不到 Lua 目录：{LUA_DIR}")
         return 1
@@ -653,20 +662,28 @@ def main() -> int:
     used = collect_event_ids()
     print(f"场景里被引用的事件共 {len(used)} 个")
 
-    removed = clear_old_lua()
-    print(f"清理模板旧剧情脚本 {removed} 个")
+    # 只有 --force 才清空重建；否则保留手写剧情
+    if force:
+        removed = clear_old_lua()
+        print(f"清理模板旧剧情脚本 {removed} 个")
+    else:
+        print("未加 --force：保留已有脚本，只补缺失的占位")
 
+    kept = 0
     for event_id, code in sorted(STORY.items()):
-        write_lua(event_id, code)
+        if not write_lua(event_id, code, force):
+            kept += 1
         if event_id not in used:
             print(f"  [warn] 事件 {event_id} 没有被任何场景引用")
+    if kept:
+        print(f"  [skip] {kept} 个已有脚本内容不同，保持不变（需要覆盖请加 --force）")
 
     placeholders = 0
     for event_id in sorted(used - set(STORY)):
-        write_lua(event_id, PLACEHOLDER)
-        placeholders += 1
+        if write_lua(event_id, PLACEHOLDER, force):
+            placeholders += 1
 
-    print(f"写入剧情 {len(STORY)} 个，占位 {placeholders} 个")
+    print(f"写入剧情 {len(STORY) - kept} 个，占位 {placeholders} 个")
     return 0
 
 

@@ -36,6 +36,11 @@ namespace Jyx2
                 var file = tmp[0];
                 var func = tmp[1];
                 var chunk = LuaManager.LoadLua(file);
+                //缺失的lua不能让上层事件永久卡死（LoadLua 内部已 LogError 并返回 null）
+                if (chunk == null)
+                {
+                    return;
+                }
                 string luaContent = Encoding.UTF8.GetString(chunk).Trim('\n').Trim('\r');
                 luaContent += $"\n{func}()";
                 await ExecuteLuaAsync(luaContent, path);
@@ -44,6 +49,10 @@ namespace Jyx2
             else
             {
                 var chunk = LuaManager.LoadLua(path);
+                if (chunk == null)
+                {
+                    return;
+                }
                 string luaContent = Encoding.UTF8.GetString(chunk).Trim('\n').Trim('\r');
             
                 await ExecuteLuaAsync(luaContent, path);

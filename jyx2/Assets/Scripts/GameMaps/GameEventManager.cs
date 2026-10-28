@@ -173,17 +173,25 @@ public class GameEventManager : MonoBehaviour
         {
             //先判断是否有蓝图类
             //如果有则执行蓝图，否则执行lua
-            var graph = await Jyx2ResourceHelper.LoadEventGraph(eventName);
-            if (graph != null)
+            try
             {
-                graph.Run(OnFinishEvent);
-            }
-            else
-            {
+                var graph = await Jyx2ResourceHelper.LoadEventGraph(eventName);
+                if (graph != null)
+                {
+                    graph.Run(OnFinishEvent);
+                    return;
+                }
+
                 var eventLuaPath = string.Format(RuntimeEnvSetup.CurrentModConfig.LuaFilePatten, eventName);
                 await Jyx2.LuaExecutor.Execute(eventLuaPath);
-                OnFinishEvent();
             }
+            catch (Exception e)
+            {
+                //MOD里缺失或写错的lua不应该把整个场景的事件锁死
+                Debug.LogError($"[GameEvent] 事件 {eventName} 执行失败：{e}");
+            }
+
+            OnFinishEvent();
         }
 
         ExecuteCurEvent().Forget();

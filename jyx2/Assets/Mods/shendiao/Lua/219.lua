@@ -1,5 +1,5 @@
 if GetFlagInt("击退李莫愁") == 0 then
-    Talk(0, "（石壁上刻着密密麻麻的小字。）")
+    Talk(0, "（石棺侧面刻着密密麻麻的小字，须得凑近了才看得清。）")
     do return end;
 end
 if GetFlagInt("玉女心经") == 1 then goto label0 end;
@@ -17,8 +17,8 @@ if GetFlagInt("玉女心经") == 1 then goto label0 end;
     ModifyEvent(-2, -2, -2, -2, -1, -1, -1, -2, -2, -2, -2, -2, -2);
     ShowMessage("学会了「玉女剑法」「玉女素心剑」。")
     Talk(0, "（古墓之外，江湖上还在传着襄阳的战事。）")
-    Talk(0, "（总有一天，我要去看看外面的天下。）")
-    ShowMessage("第一章《活死人墓》完。第二章《大胜关英雄会》敬请期待。")
+    Talk(0, "（可我要先下山一趟。）")
+    ShowMessage("第一章《活死人墓》完。接下来：终南山后的山洞。")
     do return end;
 ::label0::
     Talk(22, "剑要再快些。")
