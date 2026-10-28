@@ -34,8 +34,11 @@ import sys
 
 MOD_PLAYER = "jyx2/Assets/Mods/shendiao/Prefabs/Player.prefab"
 OFFICIAL_PLAYER = "jyx2/Assets/Prefabs/Player.prefab"
+# 旧结构参考：shendiao 的场景都是从 SAMPLE 模板复制来的，
+# 因此场景里 Player 实例的 target fileID 对应的是 SAMPLE 的 Player.prefab。
+SOURCE_PLAYER = "jyx2/Assets/Mods/SAMPLE/Prefabs/Player.prefab"
 MOD_PLAYER_GUID = "3865cb9c075a411d920aee4d5c7d0149"
-SCENES = ["00_mochuanlinju", "01_moqiaoshanzhuang", "02_wanzhushuyuan"]
+SCENES = ["00_mochuanlinju", "01_moqiaoshanzhuang", "02_wanzhushuyuan", "1000_daditu"]
 MAPS = "jyx2/Assets/Mods/shendiao/Maps/GameMaps"
 
 DOC_RE = re.compile(r"--- !u!(\d+) &(-?\d+)( stripped)?\r?\n")
@@ -90,45 +93,86 @@ MOD_RE = re.compile(
 )
 
 
-def patch_scene(path, mapping, dry):
+def patch_scene(path, mapping, new_ids, dry):
     """重写场景里 Player 实例的 m_Modifications target fileID
 
     Unity 写 YAML 时会把 target 行折成两行：
         - target: {fileID: 123, guid: xxx,
             type: 3}
     所以必须用带 \s* 的整条 modification 正则来匹配。
+
+    幂等：如果 target 已经是新 prefab 的 fileID，原样保留（重复执行不会破坏）。
     """
     text = read(path)
     header, docs = split_docs(text)
 
-    changed = dropped = 0
+    changed = dropped = kept = 0
     out = []
     for cls, fid, stripped, raw in docs:
         if cls == "1001" and MOD_PLAYER_GUID in raw:
             def repl(m):
-                nonlocal changed, dropped
+                nonlocal changed, dropped, kept
                 old = m.group(1)
-                if old not in mapping:
+                if old in mapping:
+                    changed += 1
+                    target = mapping[old]
+                elif old in new_ids:
+                    kept += 1
+                    return m.group(0)
+                else:
                     dropped += 1
                     return ""
-                changed += 1
                 return ("    - target: {fileID: %s, guid: %s, type: 3}\n"
                         "      propertyPath: %s\n"
                         "      value: %s\n"
                         "      objectReference: %s\n") % (
-                    mapping[old], MOD_PLAYER_GUID,
+                    target, MOD_PLAYER_GUID,
                     m.group(2), m.group(3), m.group(4))
 
             raw = MOD_RE.sub(repl, raw)
         out.append(raw)
 
     result = header + "".join(out)
-    if dry:
-        print("  [dry] %s: 重映射 %d 条，删掉 %d 条失效 target" % (path, changed, dropped))
-    else:
+    tag = "dry" if dry else "ok "
+    print("  [%s] %s: 重映射 %d 条，保留 %d 条，删掉 %d 条失效 target"
+          % (tag, os.path.basename(path), changed, kept, dropped))
+    if not dry and (changed or dropped):
         write(path, result)
-        print("  [ok] %s: 重映射 %d 条，删掉 %d 条失效 target" % (path, changed, dropped))
     return changed, dropped
+
+
+STRIPPED_SRC_RE = re.compile(
+    r"m_CorrespondingSourceObject: \{fileID: (-?\d+), guid: " + MOD_PLAYER_GUID + r","
+)
+
+
+def patch_stripped_sources(path, mapping, dry):
+    """重映射场景里 stripped 文档的 m_CorrespondingSourceObject。
+
+    Prefab 实例在场景里会留下 stripped 的 GameObject/Transform 文档，
+    它们用 m_CorrespondingSourceObject 指回 prefab 内部的 fileID。
+    prefab 内容被替换后这些 fileID 失效 -> Unity 无法把实例根挂到父节点上，
+    m_Modifications 也可能整体失效（主角位置丢失）。
+    """
+    text = read(path)
+    changed = 0
+
+    def repl(m):
+        nonlocal changed
+        old = m.group(1)
+        if old in mapping:
+            changed += 1
+            return ("m_CorrespondingSourceObject: {fileID: %s, guid: %s,"
+                    % (mapping[old], MOD_PLAYER_GUID))
+        return m.group(0)
+
+    result = STRIPPED_SRC_RE.sub(repl, text)
+    tag = "dry" if dry else "ok "
+    print("  [%s] %s: m_CorrespondingSourceObject 重映射 %d 条"
+          % (tag, os.path.basename(path), changed))
+    if not dry and changed:
+        write(path, result)
+    return changed
 
 
 def clean_stripped_mods(path, stripped_ids, dry):
@@ -168,12 +212,13 @@ def clean_stripped_mods(path, stripped_ids, dry):
 def main():
     dry = "--apply" not in sys.argv
 
-    old_text = read(MOD_PLAYER)
+    old_text = read(SOURCE_PLAYER) if os.path.exists(SOURCE_PLAYER) else read(MOD_PLAYER)
     new_text = read(OFFICIAL_PLAYER)
     _, old_docs = split_docs(old_text)
     _, new_docs = split_docs(new_text)
 
-    print("== 配对 fileID（旧 MOD Player.prefab -> 官方 Player.prefab）")
+    print("== 配对 fileID（旧模板 Player.prefab (%s) -> 官方 Player.prefab）"
+          % ("SAMPLE" if os.path.exists(SOURCE_PLAYER) else "MOD"))
     mapping = build_map(old_docs, new_docs)
     for a, b in mapping.items():
         print("   %-20s -> %s" % (a, b))
@@ -187,11 +232,15 @@ def main():
 
     # 新 prefab 里所有 stripped 对象（内嵌子 prefab 的节点）都不允许被场景 override
     stripped_ids = set(fid for _c, fid, st, _r in new_docs if st)
+    # 新 prefab 的完整 fileID 集合（含被引用的），用于 patch_scene 幂等判断
+    new_ids = set(fid for _c, fid, _st, _r in new_docs)
+    new_ids |= set(re.findall(r"fileID: (-?\d+)", new_text))
 
     print("\n== 修正场景 Player 实例的 m_Modifications")
     for scene in SCENES:
         path = os.path.join(MAPS, scene + ".unity")
-        patch_scene(path, mapping, dry)
+        patch_scene(path, mapping, new_ids, dry)
+        patch_stripped_sources(path, mapping, dry)
         clean_stripped_mods(path, stripped_ids, dry)
 
     return 0
