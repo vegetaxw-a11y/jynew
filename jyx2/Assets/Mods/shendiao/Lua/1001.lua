@@ -37,7 +37,7 @@ if GetFlagInt("郭靖到访") == 1 then goto label0 end;
     Talk(11, "唉，又多一个。")
     SetFlagInt("序章完成", 1);
     ModifyEvent(-2, -2, -2, -2, -1, -1, -1, -2, -2, -2, -2, -2, -2);
-    ShowMessage("请前往大地图，赶赴「终南山·重阳宫」。")
+    ShowMessage("请前往大地图，往西南方赶赴【重阳宫】。")
     do return end;
 ::label0::
     Talk(10, "过儿，可准备妥当了？")
