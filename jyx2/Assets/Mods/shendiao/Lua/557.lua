@@ -7,5 +7,5 @@ Talk(0, "（庙后那孔破窑，如今便是我的家。）")
 ScreenVignette(false)
 SetFlagInt("序章开始", 1)
 ModifyEvent(-2, -2, -2, -2, -1, -1, -1, -2, -2, -2, -2, -2, -2)
-ShowMessage("序章·铁枪庙：庙里有位老庙祝，去问问他爹的旧事。")
+Talk(0, "（<color=#FF0000>老庙祝</color>在庙里。爹的旧事，他也许知道。）")
 do return end

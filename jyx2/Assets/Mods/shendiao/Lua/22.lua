@@ -13,7 +13,7 @@ if GetFlagInt("孙婆婆收留") == 1 then goto label0 end;
     AddItem(37, 1);
     SetFlagInt("孙婆婆收留", 1);
     ModifyEvent(-2, -2, -2, -2, -1, -1, -1, -2, -2, -2, -2, -2, -2);
-    ShowMessage("去石室深处，见一见古墓派的主人。")
+    Talk(0, "（<color=#FF0000>石室深处</color>。古墓派的主人，就在那里。）")
     do return end;
 ::label0::
     Talk(21, "孩子，墓里冷，多穿些。")

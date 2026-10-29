@@ -43,5 +43,6 @@ Talk(0, "（我学着他的样子趴下。）")
 Talk(0, "（那一夜，我在海边趴到天亮。）")
 Talk(0, "（手掌按在沙上，能感觉到地底下的震动。）")
 SetFlagInt("蛤蟆功", 1)
-ShowMessage("习得【蛤蟆功】。回后院去。")
+LearnMagic2(0, 31, 0)
+Talk(0, "（<color=#FF0000>蛤蟆功</color>，我练成了。回后院去。）")
 do return end;

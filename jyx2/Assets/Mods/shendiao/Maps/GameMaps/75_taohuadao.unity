@@ -30437,7 +30437,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 77ff8b67996ae6c419a86e052dfcd6e2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  TransportTriggerName: 
+  TransportTriggerName: "\u91CD\u9633\u5BAB"
   ExtraCommand: 
   ButtonText: "\u79BB\u5F00"
   m_EventTargets: []
@@ -60540,7 +60540,7 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Controller
       value: 
-      objectReference: {fileID: 9100000, guid: 3c2253daa36057047816b5ab63f5950f, type: 2}
+      objectReference: {fileID: 9100000, guid: c1fb7eef08ade9f49869d15acfbbc888, type: 2}
     - target: {fileID: 6953512269019162106, guid: e258f6bf50035b54888fd864fd4996c5,
         type: 3}
       propertyPath: m_Name
@@ -103781,7 +103781,7 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Controller
       value: 
-      objectReference: {fileID: 9100000, guid: 3c2253daa36057047816b5ab63f5950f, type: 2}
+      objectReference: {fileID: 9100000, guid: afb4f35abeec2b0428bbbd377272bf07, type: 2}
     - target: {fileID: 6939922882187614585, guid: 6c5e0db599ddbae4a9131a44e36f0342,
         type: 3}
       propertyPath: m_RootOrder

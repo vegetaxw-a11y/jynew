@@ -18,7 +18,7 @@ if GetFlagInt("赵志敬收徒") == 0 then
     Talk(0, "（这就是全真教的待客之道。）")
     Talk(0, "（也是我爹的待客之道么？）")
     SetFlagInt("赵志敬收徒", 1)
-    ShowMessage("第一章·重阳宫：在后山做杂役，与师兄弟们打打交道。")
+    Talk(0, "（<color=#FF0000>后山</color>的杂役。师兄弟们都在那儿。）")
     do return end
 end
 if GetFlagInt("赵志敬为难") == 0 then
@@ -47,7 +47,7 @@ if GetFlagInt("赵志敬为难") == 0 then
     Talk(20, "去，把后山那三百斤柴劈完。劈不完，今日不必吃饭。")
     Talk(0, "……是。")
     SetFlagInt("赵志敬为难", 1)
-    ShowMessage("赵志敬借故责罚。去问问后山的师兄弟们。")
+    Talk(0, "（赵志敬又借故罚我。去问问<color=#FF0000>后山的师兄弟</color>。）")
     do return end
 end
 if GetFlagInt("决意出走") == 0 then

@@ -26,7 +26,7 @@ if GetFlagInt("拜入全真") == 1 then
     Talk(10, "还有。别学你爹。")
     Talk(0, "（他转身就走，一步也没有回头。）")
     SetFlagInt("郭靖辞别", 1)
-    ShowMessage("郭靖下山去了。往后这重阳宫，只能靠自己。")
+    Talk(0, "（郭伯伯下山了。这<color=#FF0000>重阳宫</color>，往后只能靠自己。）")
     do return end
 end
 Talk(10, "去罢。丘道长在殿里等你。")

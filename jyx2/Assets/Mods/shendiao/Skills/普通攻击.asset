@@ -24,7 +24,7 @@ MonoBehaviour:
   particleDelay: 0
   partileOffset: {x: 0, y: 0, z: 0}
   particleScale: 1
-  blockPartilePrefab: {fileID: 1058461536169382, guid: ed5cca09c94a27849a6d803f60a3e42f,
+  blockPartilePrefab: {fileID: 0,
     type: 3}
   blockParticleDelay: 1.4
   blockPartileOffset: {x: 0, y: 0, z: 0}

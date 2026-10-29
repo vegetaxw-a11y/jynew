@@ -1758,4 +1758,97 @@ shendiao 自己的 21 个技能（全真剑法、玉女剑法、蛤蟆功、打�
 - 如果不满意某个技能的动画，改 `gen_skill_displays.py` 的 `PREFERRED_TEMPLATES`
   → 删掉对应 `Skills/<名>.asset(+.meta)` → 重跑 `--apply` → 重新导出。
 
+---
+
+# 10-30 修复：7 条玩家反馈
+
+玩家一次性报了 7 个问题，全部定位到根因并修完，已重打 AB + 安装。
+
+## 一、逐条根因
+
+| # | 反馈 | 根因（证据） | 修法 |
+| --- | --- | --- | --- |
+| 1 | 欧阳锋教了蛤蟆功，武功列表里没有 | `923.lua` 只写了 `SetFlagInt("蛤蟆功", 1)`——Flag 只走剧情分支，`role.LearnMagic` 从没被调过 | 加 `LearnMagic2(0, 31, 0)`（31 = `SkillConfig` 里蛤蟆功的 Id，`Skills/蛤蟆功.asset` 已存在） |
+| 2 | 古墓派门口有铁门，进不去 | `18_gumu.unity` 里 4 扇门挂着 `NavMeshObstacle` 且 `m_Carve: 1`，**运行时会挖掉门下的 NavMesh**；`Door_03.FBX` 的 `addColliders: 0`，所以 collider 工具查不到任何东西 | 4 处 `m_Carve` 改 0 |
+| 3 | 破庙里郭靖黄蓉"坐在半空中"，后面只要有他俩都坐着 | 场景实例的 `m_Modifications` 把 `Animator.m_Controller` 覆盖成 `sit_on_chair.controller`，而场景里没给他们摆椅子。对照原版 `JYX2/…/75_taohuadao.unity` 的同一实例，覆盖项一模一样——原版就这样 | 5 处（破庙/桃花岛/重阳宫）换成 `GuojingController` / `HuangrongController`（默认态 `站立`） |
+| 4 | 桃花岛门口进出都复述"船靠了岸…" | `465.lua` 挂在 `m_EnterEventId=465`（走进去就触发）而非交互，每次踩都播 | 加 `初到桃花岛` flag，只播一次 |
+| 5 | 郭靖说去桃花岛就该直接送到门口 | `MapTeleportor.TransportTriggerName` 为空 → 落点 = 大地图上与地图名同名的触发器；破庙离开落到默认点 | 破庙 `Leave` 的 `TransportTriggerName = 桃花岛` |
+| 6 | 去终南山也一样 | 同上 | 桃花岛 `Leave` 的 `TransportTriggerName = 重阳宫` |
+| 7 | 头像乱安人头 / 对话转场生硬 | 见下面两节 | 31 张覆盖头像 + 28 处改内心独白 |
+
+## 二、头像：为什么乱，怎么修
+
+`ChatUIPanel.ShowCharacter(headId)` 拼的是 `Assets/BuildSource/head/{headId}.png`，
+`headId` 就是 `Talk` 的 roleId，**不是**人物表的 `Pic` 字段。
+
+而 shendiao 的角色 id 是自编的（0/10/11/20…43/60…90/111/123/140…190/610…619），
+原版同号是别人：id=10 郭靖 → 原版 `10.png` = **范遥**，id=22 小龙女 → **左冷禅**，
+id=41 郭芙 → **张三**。id>114 的角色（孙不二 123、野狼 140+、蓝隼士兵 610+）
+干脆没有对应图，`LoadAsset` 返回 null —— 头像框显示上一张残留。
+
+修法走 **MOD 覆盖 base 资源**：`ResLoader.LaunchMod` 里
+
+```csharp
+string prefix = $"assets/mods/{modId}/";
+var url = assetName.Replace(prefix, "assets/");
+_assetsMap[url] = (modId, assetName);   // 后登记覆盖先登记
+```
+
+所以 `Assets/Mods/shendiao/BuildSource/head/10.png` 会顶掉 base 的
+`Assets/BuildSource/head/10.png`。
+
+原版人物表里 55…69 号正好是神雕角色（55 郭靖、56 黄蓉、57 黄药师、58 杨过、
+59 小龙女、60 欧阳锋、62 金轮法王、63 程英、64 周伯通、65 一灯、66 瑛姑、
+67 裘千仞、68 丘处机、69 洪七公），同角色的直接借；原版没有的按性别/年龄/气质借。
+
+**踩到的坑**：第一次打完包，`shendiao_mod.manifest` 里 `head/` 是 0 条 —— 因为
+`Jyx2ModCli.CreateBundleBuild` 用 `AssetDatabase.GetAssetPathsFromAssetBundle` 收集，
+**没标 `assetBundleName` 的资源压根不进包**。补上标签后 31 条齐了。
+
+复制原版 `.meta` 时 `guid` 和 `spriteID` 都换了新值（撞 GUID 会让工程引用错乱，
+撞 spriteID 会让 Unity 把两张图当成同一张）。
+
+## 三、对话：红色重点 + 去掉弹框
+
+- `MainContent_Text` 是 uGUI `Text`（`ChatUIPanel_UIData.cs:18`），支持 `<color=#FF0000>`。
+- 但 `ShowText()` 在超过 `GameConst.MAX_CHAT_CHART_NUM = 156` 时按「！？，」切段，
+  会把标签切断，所以每句控制在 156 字符内。
+- 28 处 `ShowMessage("...往桃花岛走...")` 改成 `Talk(0, "（...）")` 内心独白，
+  重点加红色；「得到物品」「学会武功」这类纯反馈保留弹框。
+
+## 四、顺带修的
+
+`check_guids.py` 报 `Skills/普通攻击.asset`、`卷山狂刀.asset` 各有一处悬空 guid
+（`blockPartilePrefab` 指向不存在的 prefab）。进战斗实例化格挡特效会拿到 null，
+和 pitfall 28 同一类。已清成 `{fileID: 0}`。
+
+两个场景的悬空 guid（`18_gumu` / `62_pomiao`）经查是 `!u!157` **LightmapSettings**
+的光照设置引用，不影响玩法，没动。
+
+## 五、这轮仍然只能进游戏验的
+
+1. 蛤蟆功学完，技能面板里是否出现、战斗里能否用（`Skills/蛤蟆功.asset` 在，但动画是借模板的）。
+2. 古墓门口能否走进去（若仍走不动，说明 NavMesh 烘焙本身缺那块，需要在 Unity 里重烘）。
+3. 郭靖黄蓉是否站起来了（原版也是坐姿覆盖，本 MOD 已偏离原版）。
+4. 从破庙出来是否真的落在桃花岛渡口、从桃花岛出来是否在重阳宫山门。
+5. 31 张头像是否都对上（原版没有的角色是我按气质借的，可能需要微调 `_make_heads.py` 的 `MAP`）。
+6. `<color=#FF0000>` 在对话框里是否正常显示（若显示成裸标签，说明该 Text 的 `supportRichText` 被关了）。
+
+## 六、本轮新增的脚本
+
+`tools/shendiao/` 下（都支持 dry-run，加 `--apply` 才写盘）：
+
+| 脚本 | 作用 |
+| --- | --- |
+| `_apply_story_fix.py` | 28 处 ShowMessage → 内心独白 + 红色；923 加 LearnMagic2；465 加一次性守卫 |
+| `_fix_sitting_npc.py` | 全场景把郭靖/黄蓉的 `sit_on_chair` 覆盖换回站立 controller |
+| `_nav_carve.py` | 列出/关闭场景里 `NavMeshObstacle.m_Carve`（空气墙） |
+| `_set_transport.py` | 改子地图 `Leave` 的落点 |
+| `_make_heads.py` | 生成 MOD 覆盖头像 |
+| `_tag_assetbundle.py` | 给 MOD 资源 `.meta` 打 `assetBundleName`（漏了就不进包） |
+| `_fix_skill_refs.py` | 清掉 Skills 里指向不存在资源的引用 |
+
+诊断用：`_dump_instance.py`（看 prefab 实例的覆盖项）、`_node_pos.py`（世界坐标）、
+`_inst_scan.py`（某 prefab 被哪些场景引用/摆在哪）、`_obstacles.py`、`_prefab_cols.py`。
+
 

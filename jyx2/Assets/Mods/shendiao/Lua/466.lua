@@ -17,7 +17,7 @@ if GetFlagInt("桃花岛学艺") == 0 then
     Talk(11, "别这样看着我。你爹当年，就是书读得太少。")
     Talk(0, "（又来一个提我爹的。）")
     SetFlagInt("桃花岛学艺", 1)
-    ShowMessage("桃花岛：随黄蓉读书。岛上还有别处可去。")
+    Talk(0, "（跟着黄伯母读书。这岛上，还有别处可去。）")
     do return end
 end
 if GetFlagInt("郭芙欺凌") == 0 then
@@ -54,5 +54,5 @@ Talk(10, "全真教是天下正宗。你在那里，能学正派武功。")
 Talk(0, "（原来我在这个岛上，从头到尾都是个外人。）")
 Talk(0, "……好。")
 SetFlagInt("离岛赴终南", 1)
-ShowMessage("桃花岛：回大地图，往【重阳宫】去。")
+Talk(10, "过儿，<color=#FF0000>终南山，重阳宫</color>。")
 do return end;

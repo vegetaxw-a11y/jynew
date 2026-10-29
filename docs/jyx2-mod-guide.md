@@ -488,6 +488,7 @@ BoxCollider 1×1×1、中心在物体位置 → 范围 `[y-0.5, y+0.5]`。
 | 3 | 新加的资源运行时找不到 | 编辑器里一切正常 | 没标 `shendiao_mod` / `shendiao_maps` | `jyx2mod.py check`；导出后 `grep` AB 内容确认 |
 | 4 | 包体积莫名涨到 3 倍 | `<id>_maps` 从 114MB → 363MB | 增量导出跳过 `base_assets`，共享贴图/Shader 被复制进 MOD 包 | 分发前 `--with-base` 全量打一次 |
 | 5 | 导出后 `git status` 多出一堆改动 | 3 个 water `.mat` + `DOTweenSettings.asset` + `EditorUserSettings.asset` | Unity batchmode 顺手重新序列化 | 导出后 `git checkout --` 这几个文件，**别提交** |
+| 6 | **MOD 覆盖 base 资源（头像/贴图）不生效** | 图放进了 `Assets/Mods/<id>/`，游戏里还是原版那张 | ① 资源**没打 `assetBundleName`** → `Jyx2ModCli.CreateBundleBuild` 用 `GetAssetPathsFromAssetBundle` 收集，压根不进包；② 路径必须镜像 base 的 `assets/` 结构 | 放 `Assets/Mods/<id>/BuildSource/head/10.png`（`ResLoader.LaunchMod` 会把 `assets/mods/<id>/` 前缀剥掉、后登记的覆盖先登记的）；`.meta` 写 `assetBundleName: <id>_mod`；复制 `.meta` 时 `guid` 和 `spriteID` **都必须换新**，否则和原版撞 |
 
 #### 战斗（缺失时不报错，只是"静默错乱"，最难查）
 
@@ -507,6 +508,9 @@ BoxCollider 1×1×1、中心在物体位置 → 范围 `[y-0.5, y+0.5]`。
 | 10 | 人物"看得见但走不动" | NavMesh 明明烘好了 | 旧存档 `WorldMapSaveData.areaMask = 0` | 改场景/`Player.prefab` 后一律**新存档**验证 |
 | 11 | 换 prefab 后角色掉到 (0,0,0) | — | `m_Modifications` 的 `target.fileID` 没重映射 | `fix_player.py`；或换回同结构 prefab |
 | 12 | 改一个场景，另一张图也变了 | — | 改到了共享 prefab（`QuanzhenDizi 1.prefab` 有 133 个实例） | 只改场景内 prefab instance 的 override |
+| 13 | **NPC"坐在半空中"** | 郭靖/黄蓉悬空盘坐，走到哪张图都这样，尤其出戏 | 场景实例的 `m_Modifications` 把 `Animator.m_Controller` 覆盖成了 `sit_on_chair.controller`，而场景里并没有给他俩摆椅子。注意 `LevelMaster` 只给 `controller == null` 的 `Level/NPC/*` 兜底赋值，兜底值是 `jyx2humanoidController`（默认态 `战斗待机`，半蹲，看着也像"坐"） | `_dump_instance.py <scene> <instanceID>` 看覆盖项；把 controller 换成角色自己的 `XxxController.controller`（默认态是 `站立` = `StandNormal@Idle`）。`_fix_sitting_npc.py` 可全场景批量修 |
+| 14 | **门/路口"走不过去"** | 门就在眼前，点地面角色不动；`list_colliders.py --solid-only` 却一片干净 | `NavMeshObstacle.m_Carve: 1` 在运行时把门下的 NavMesh 挖掉（不是 Collider，所以 collider 工具查不到）。古墓 4 扇门全中 | `_nav_carve.py <scene> --carve-off --apply`；改的是场景里独立组件（`m_PrefabInstance: {fileID: 0}`）才有效 |
+| 15 | **从子地图出来落在大地图原点/远处** | "桃花岛太远了""终南山也远" | `MapTeleportor.TransportTriggerName` 为空时，落点 = `curMap.Name` 去大地图 `Level/Triggers` 找同名节点，找不到就落默认点 | 给离场 `Leave` 的 `TransportTriggerName` 填目标节点名（`_set_transport.py`），出图即到门口 |
 
 #### 剧情与事件
 
@@ -524,6 +528,9 @@ BoxCollider 1×1×1、中心在物体位置 → 范围 `[y-0.5, y+0.5]`。
 | 28 | **孤儿脚本**：剧情写了但从不执行 | 玩家按提示去某处找 NPC，人根本不在（实例：`10.lua` 写"先与郭靖说话"，重阳宫场景里没有郭靖） | 文件名 = EventId，但场景里没有任何 `GameEvent` 指向这个 Id | 写剧情前先 `inspect_events.py` 列场景事件；`fill_missing_story.py` 反向核对"场景事件 ↔ Lua 文件"是否一一对应 |
 | 29 | `gen_story.py` 把**手写剧情**清空重写 | 改好的剧本一夜回到解放前 | 它先 `clear_old_lua()` 删光 `Lua/*.lua`，再按 `STORY` 字典（早期草稿）重写 | 已改为默认跳过内容不同的已存在脚本，`--force` 才全量重建 |
 | 30 | `add_scene_npc.py` 报"模板场景里找不到 guid" | 加不了 NPC | 它从**模板场景**里拷现成的 `PrefabInstance`，模板里没有该 prefab 的实例就无从下手 | 换一个有该实例的场景当模板；另注意 `Laotaitai.prefab` 这类实例没有 stripped `GameObject` 块，拿不到 fileID，**不能**作为 `m_EventTargets` 的目标 |
+| 31 | **剧情说"习得×功"，武功列表里没有** | 学完打开技能面板是空的，战斗里也用不出来 | 只在 Lua 里写了 `SetFlagInt("蛤蟆功", 1)`——Flag 只控制剧情分支，**不会真的学武功** | 还要调 `LearnMagic2(roleId, skillId, noDisplay)`（`role.LearnMagic` 才进武功列表）；`skillId` 取 `SkillConfig` 的 Id，`noDisplay=1` 才弹"习得武学"提示。`check_story.py` 会校验技能 Id 存在 |
+| 32 | 想在对话里**标红重点** | — | 聊天文本是 uGUI `Text`（支持富文本），但 `ChatUIPanel.ShowText` 在超过 `GameConst.MAX_CHAT_CHART_NUM = 156` 时会按标点**切段显示**，`<color>` 标签被切断就变成乱码 | 每句控制在 156 字符以内；写法 `<color=#FF0000>重点</color>`。`Talk` 的 roleId 同时决定头像图（`Assets/BuildSource/head/<roleId>.png`）和名字，不是表里的 `Pic` 字段 |
+| 33 | **用弹框讲"下一步去哪"很出戏** | 对话正入戏，突然一个系统弹框："往桃花岛走" | `ShowMessage` 是纯提示框，没有角色语气 | 换成 `Talk(0, "（...）")` 内心独白，重点处加红色；只保留"得到物品""学会武功"这类纯反馈用 `ShowMessage` |
 
 #### 配置表与工具链
 

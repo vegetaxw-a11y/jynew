@@ -18,7 +18,7 @@ else
 end
 Talk(0, "（它转身往洞底走。走两步，回头看我一眼。）")
 SetFlagInt("神雕试剑", 1);
-ShowMessage("大雕似乎在叫你跟着它走。")
+Talk(0, "（大雕回头看了我一眼，像是叫我<color=#FF0000>跟着它</color>。）")
 do return end;
 ::label9::
 Talk(0, "（大雕趴在火边打盹。听见脚步，抬了抬翅膀。）")

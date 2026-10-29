@@ -12,5 +12,5 @@ DarkScence();
 Talk(0, "（里头黑得伸手不见五指。）")
 LightScence();
 SetFlagInt("入墓", 1);
-ShowMessage("活死人墓：往里走，看看有没有人。")
+Talk(0, "（往里走。总得看看<color=#FF0000>墓里</color>有没有人。）")
 do return end;

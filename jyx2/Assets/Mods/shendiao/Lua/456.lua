@@ -21,7 +21,7 @@ if GetFlagInt("决意出走") == 0 then
     Talk(0, "（他们笑着走开了。）")
     Talk(0, "（这地方，一天也待不下去了。）")
     SetFlagInt("决意出走", 1)
-    ShowMessage("第一章·重阳宫：回大地图，往后山深处去。那里有座活死人墓。")
+    Talk(0, "（重阳宫的日子到头了。往<color=#FF0000>后山</color>去，那里有一座活死人墓。）")
     do return end
 end
 Talk(60, "听说后山那位……又不吃饭了。")

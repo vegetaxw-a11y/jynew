@@ -18,7 +18,7 @@ if GetFlagInt("拜师龙女") == 1 then goto label0 end;
     SetFlagInt("拜师龙女", 1);
     LearnMagic2(0, 1, 0);
     ModifyEvent(-2, -2, -2, -2, -1, -1, -1, -2, -2, -2, -2, -2, -2);
-    ShowMessage("学会了「全真剑法」。去寒玉床上打坐。")
+    Talk(0, "（全真剑法，我学会了。该去<color=#FF0000>寒玉床</color>上打坐了。）")
     do return end;
 ::label0::
     Talk(22, "寒玉床在里间，去练功。")

@@ -18,7 +18,7 @@ if GetFlagInt("玉女心经") == 1 then goto label0 end;
     ShowMessage("学会了「玉女剑法」「玉女素心剑」。")
     Talk(0, "（古墓之外，江湖上还在传着襄阳的战事。）")
     Talk(0, "（可我要先下山一趟。）")
-    ShowMessage("第一章《活死人墓》完。接下来：终南山后的山洞。")
+    Talk(0, "（活死人墓的日子，到今夜为止。往<color=#FF0000>终南山后的山洞</color>去。）")
     do return end;
 ::label0::
     Talk(22, "剑要再快些。")

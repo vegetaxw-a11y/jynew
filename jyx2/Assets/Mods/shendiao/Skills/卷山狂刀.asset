@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   weaponCode: 2
   behitClip: {fileID: 0}
-  moveClip: {fileID: 7400000, guid: 0545a2f08554aab4485a24bf96067c6c, type: 2}
+  moveClip: {fileID: 0, type: 2}
   idleClip: {fileID: 7400000, guid: fb671c229e701e349888d02feb2f9792, type: 2}
   attackClip: {fileID: 7400000, guid: 5fb9849b1b09e5046a377a34c9232701, type: 2}
   stunClip: {fileID: 0}

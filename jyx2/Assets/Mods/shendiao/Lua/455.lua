@@ -26,6 +26,6 @@ SetFlagInt("入全真", 1)
 -- 值必须是字符串 "1"（FixWithGameRuntime 里按 =="1" 比较，传 number 在部分情况下会变成 "1.0"）
 jyx2_FixMapObject("重阳宫大门弟子让路", "1")
 Talk(60, "（鹿清笃侧身让到门边，让出一条道来。）")
-ShowMessage("重阳宫：入内寻丘处机道长（顺着山门往宫里走）。")
+Talk(0, "（<color=#FF0000>丘处机</color>道长在宫里。顺着山门往里走。）")
 do return end;
 

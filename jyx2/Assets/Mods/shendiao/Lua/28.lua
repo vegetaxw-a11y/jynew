@@ -19,7 +19,7 @@ if GetFlagInt("孙婆婆之死") == 1 then goto label0 end;
     Talk(0, "（她死了。为了我这个素不相识的人。）")
     Talk(22, "……")
     ModifyEvent(-2, -2, -2, -2, -1, -1, -1, -2, -2, -2, -2, -2, -2);
-    ShowMessage("李莫愁还在墓中，小心行事。")
+    Talk(0, "（<color=#FF0000>李莫愁</color>还在墓里。走路要轻。）")
     do return end;
 ::label0::
     Talk(0, "（孙婆婆的尸身，静静躺在石台上。）")

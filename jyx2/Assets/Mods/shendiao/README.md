@@ -377,10 +377,110 @@ else
 
 ## 已知限制
 
-- 场景地形、建筑、NPC 外观沿用模板资源，只有地名/人名/剧情是神雕的；头像亦未替换。
+- 场景地形、建筑、NPC 外观沿用模板资源，只有地名/人名/剧情是神雕的。
+- 头像已按原版同角色替换（见第 8 节）；原版没有的角色按性别/年龄/气质借用。
 - 女性模型只有模板自带的三个，部分女角色共用同一模型。
 - 已注册的 14 张地图全部走通（序章 + 六章），后续扩充可加新地图或把占位场景填上。
 - 第二、三章只用旁白 + 触发器目标（大雕、石棺、白骨、木箱）交互，没有可对话的活人 NPC 之外的演出。
 - 铁掌山的 10 个「铁掌弟子N」是模板遗留实例（已改名统一叫「铁掌帮弟子」以外仍保留编号），只作氛围。
 - 旧存档里 `WorldMapSaveData.areaMask = 0` 会让 NavMesh 失效（人物看得见却走不动），改动场景后请用新存档验证。
 - MOD 目录下不能放 `Scripts/`：会和工程里 `SAMPLE/Scripts` 的同名类冲突导致 Unity 编译失败。
+
+---
+
+## 8. 头像与对话（10-30 修订）
+
+### 8.1 头像走 `head/{roleId}.png`，不是人物表的 Pic
+
+`ChatUIPanel.ShowCharacter(headId)` 直接拼 `Assets/BuildSource/head/{headId}.png`，
+而 `headId` 就是 `Talk(roleId, ...)` 的 roleId。本 MOD 的角色 id 是自编的，
+于是「郭芙(41)」用的是原版 41 号「张三」的头像、「小龙女(22)」用的是「左冷禅」。
+
+修法：**用 MOD 覆盖 base 资源**。`ResLoader.LaunchMod` 把 MOD 包里
+`assets/mods/shendiao/xxx` 登记成 `assets/xxx`，后登记覆盖先登记，所以
+`Assets/Mods/shendiao/BuildSource/head/41.png` 会顶掉 base 里的同名图。
+
+生成脚本 `tools/shendiao/_make_heads.py`（31 个角色，原版 55…69 号正好是神雕角色）：
+
+| MOD id | 角色 | 取自原版 | MOD id | 角色 | 取自原版 |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 杨过 | 58 杨过 | 27 | 公孙绿萼 | 2 程灵素 |
+| 10 | 郭靖 | 55 郭靖 | 28 | 樊一翁 | 12 殷天正 |
+| 11 | 黄蓉 | 56 黄蓉 | 29 | 裘千尺 | 6 灭绝 |
+| 20 | 赵志敬 | 19 岳不群 | 30 | 柯镇恶 | 13 谢逊 |
+| 21 | 孙婆婆 | 15 金花婆婆 | 31 | 洪七公 | 69 洪七公 |
+| 22 | 小龙女 | 59 小龙女 | 35 | 陆无双 | 47 阿紫 |
+| 23 | 丘处机 | 68 丘处机 | 36 | 周伯通 | 64 周伯通 |
+| 26 | 公孙止 | 33 黑白子 | 37 | 瑛姑 | 66 瑛姑 |
+| 38 | 一灯 | 65 一灯 | 39 | 裘千仞 | 67 裘千仞 |
+| 40 | 欧阳锋 | 60 欧阳锋 | 41 | 郭芙 | 25 蓝凤凰 |
+| 42 | 武敦儒 | 36 林平之 | 60 | 鹿清笃 | 4 阎基 |
+| 70 | 李莫愁 | 17 王难姑 | 90 | 程英 | 63 程英 |
+| … | | | | | |
+
+**三个条件缺一不可**，漏一个头像就不换：
+
+1. `.meta` 的 `guid` 必须换新（复制原版 meta 会撞 GUID）；
+2. `spriteID` 必须换新（否则 Unity 认为是同一张 sprite）；
+3. `assetBundleName: shendiao_mod` —— 漏了这条，Unity **根本不会把它打进 AB**
+   （`Jyx2ModCli.CreateBundleBuild` 用 `GetAssetPathsFromAssetBundle` 收集）。
+
+验证：`Select-String -Path Export/shendiao/shendiao_mod.manifest -Pattern 'head/'`
+应当出现 31 条。
+
+### 8.2 对话里标红重点
+
+聊天文本是 uGUI `Text`，支持富文本：`<color=#FF0000>重点</color>`。
+
+**上限**：`GameConst.MAX_CHAT_CHART_NUM = 156`。超过后 `ChatUIPanel.ShowText`
+会按「！？，」切段显示，`<color>` 标签被切断就变成裸文本。所以一句别超 156 字符。
+
+### 8.3 别用弹框讲"下一步去哪"
+
+`ShowMessage` 是纯系统提示，没有角色语气。原来 28 处"往桃花岛走""去寒玉床打坐"
+这类转场指引已全部改成 `Talk(0, "（...）")` 内心独白，重点处加红色。
+只保留「得到物品」「学会武功」这类纯反馈用 `ShowMessage`。
+
+批量改写脚本：`tools/shendiao/_apply_story_fix.py`（`--apply` 才写盘）。
+
+---
+
+## 9. 传送：出图即到门口
+
+`MapTeleportor.DoTransport` 的落点规则：
+
+```
+TransportTriggerName 非空        -> 就用它
+否则 curMap 是大地图             -> "Leave"
+否则 nextMap 是大地图            -> curMap.Name（地图名 = 大地图上的触发器名）
+```
+
+名字对不上大地图 `Level/Triggers` 里的节点，就落到默认点（原点附近）。
+
+当前配置：
+
+| 场景 | `TransportTriggerName` | 效果 |
+| --- | --- | --- |
+| `62_pomiao`（破庙） | `桃花岛` | 序章说"跟你走"，出庙直接站在桃花岛渡口 |
+| `75_taohuadao`（桃花岛） | `重阳宫` | 离岛赴终南，直接站在重阳宫山门 |
+
+改法：`tools/shendiao/_set_transport.py`（`--apply`）。
+副作用：破庙/桃花岛的"离开"按钮以后都落到这两处，剧情线上正好是下一站。
+
+---
+
+## 10. 10-30 修复的 7 个玩家反馈
+
+| # | 反馈 | 根因 | 修法 |
+| --- | --- | --- | --- |
+| 1 | 欧阳锋教了蛤蟆功，武功列表里没有 | 只 `SetFlagInt("蛤蟆功", 1)`，没真学 | `923.lua` 加 `LearnMagic2(0, 31, 0)` |
+| 2 | 古墓门口有铁门进不去 | 4 扇门的 `NavMeshObstacle.m_Carve: 1` 把门下 NavMesh 挖空 | `_nav_carve.py --carve-off` |
+| 3 | 郭靖黄蓉"坐在半空中" | 场景把 Animator 覆盖成 `sit_on_chair.controller`，旁边没椅子 | `_fix_sitting_npc.py` 换成 `GuojingController`/`HuangrongController`（5 处） |
+| 4 | 桃花岛进出都复述背景 | `465.lua` 挂在 `m_EnterEventId` 上，每次踩都播 | 加 `初到桃花岛` flag，只播一次 |
+| 5 | 去桃花岛太远 | 破庙离场落点是大地图原点 | `TransportTriggerName = 桃花岛` |
+| 6 | 去终南山太远 | 同上 | `TransportTriggerName = 重阳宫` |
+| 7 | 头像乱 / 对话生硬 | 见第 8 节 | 31 张覆盖头像 + 28 处改内心独白 |
+
+顺带修掉：`Skills/普通攻击.asset`、`卷山狂刀.asset` 各有一处悬空 guid
+（`blockPartilePrefab`），进战斗实例化特效时会拿到 null。
+脚本 `_fix_skill_refs.py` 会清掉 Skills 下所有指向不存在资源的引用。
