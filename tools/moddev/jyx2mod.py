@@ -819,7 +819,105 @@ def cmd_check(args) -> int:
     errors.extend(syntax_errors)
     log(f"  Lua: 检查 {len(lua_files)} 个文件（Preloaded: {', '.join(preloaded) or '无'}）")
 
-    # 5. 汇总
+    # 5. 战斗资源齐全性
+    #
+    # 这两项漏了**不会报错，只会让战场空掉或让人物变成别人**，是最难查的一类问题：
+    #   - SkillConfig 的 DisplayFileName（空则用 Name）找不到同名 Skills/*.asset
+    #     → BattleRole.RefreshModel → SwitchSkillTo 里 display 为 null → NullReferenceException
+    #       异常发生在 BattleLoader.InitBattle 协程里，后面 StartBattle 不执行 → 战场一个人都没有
+    #   - 人物表 ModelFileKey（空则用角色名）找不到同名 Models/*.asset
+    #     → ModelAsset.Get 返回 null，调用方退化成随机模型
+    def asset_names(sub: str) -> set[str]:
+        path = os.path.join(mod_dir, sub)
+        if not os.path.isdir(path):
+            return set()
+        return {os.path.splitext(f)[0] for f in os.listdir(path) if f.endswith(".asset")}
+
+    def unmarked_assets(sub: str) -> list[str]:
+        """Models/ Skills/ 是代码按目录加载的，没打 AssetBundle 名就等于没进包"""
+        path = os.path.join(mod_dir, sub)
+        if not os.path.isdir(path):
+            return []
+        bad: list[str] = []
+        for f in sorted(os.listdir(path)):
+            if not f.endswith(".asset"):
+                continue
+            meta = os.path.join(path, f + ".meta")
+            if not os.path.isfile(meta):
+                bad.append(f + "（缺 .meta）")
+                continue
+            m = re.search(r"^\s*assetBundleName:\s*(\S*)\s*$", read_text(meta), re.M)
+            if not m or m.group(1) != main_bundle:
+                bad.append(f)
+        return bad
+
+    skill_lua = os.path.join(lua_dir, "SkillConfig.lua")
+    if os.path.isfile(skill_lua):
+        displays = asset_names("Skills")
+        missing: list[str] = []
+        skill_count = 0
+        for line in read_text(skill_lua).splitlines():
+            line = line.strip()
+            if not line.startswith("{"):
+                continue
+            pairs = re.findall(r"\[\[(.*?)\]\]", line)
+            if len(pairs) < 2:
+                continue
+            skill_count += 1
+            name = pairs[0]
+            display = pairs[-1].strip() or name
+            if display not in displays:
+                missing.append(f"{name}→{display}")
+        if missing:
+            errors.append(
+                f"{len(missing)} 个技能缺 Skills/<名字>.asset（进战斗会空引用，战场一个人都出不来）："
+                + "、".join(missing[:8]) + ("…" if len(missing) > 8 else "")
+                + "；用 tools/shendiao/gen_skill_displays.py 补齐"
+            )
+        log(f"  技能展现配置: Skills {len(displays)} 个 / 技能 {skill_count} 个")
+
+    char_lua = os.path.join(lua_dir, "CharacterConfig.lua")
+    if os.path.isfile(char_lua):
+        models = asset_names("Models")
+        missing = []
+        char_count = 0
+        for line in read_text(char_lua).splitlines():
+            line = line.strip()
+            if not line.startswith("{"):
+                continue
+            pairs = re.findall(r"\[\[(.*?)\]\]", line)
+            if not pairs:
+                continue
+            char_count += 1
+            name = pairs[0]
+            key = (pairs[-1].strip() if len(pairs) > 1 else "") or name
+            if key not in models:
+                missing.append(f"{name}→{key}")
+        if missing:
+            errors.append(
+                f"{len(missing)} 个角色缺 Models/<ModelFileKey>.asset（战斗/场景里会随机变成别人）："
+                + "、".join(missing[:8]) + ("…" if len(missing) > 8 else "")
+                + "；用 tools/shendiao/gen_model_assets.py 补齐"
+            )
+        log(f"  角色模型配置: Models {len(models)} 个 / 角色 {char_count} 个")
+
+    # 内置 MOD（IsNativeMod=1）的资源会随本体打进 StreamingAssets，不需要 AssetBundle 名；
+    # 只有真正外挂的 MOD 才依赖它。另外「一个都没打」是该 MOD 的既有风格（靠整体打包），
+    # 只报「大部分打了、个别漏了」——那才是真的疏漏。
+    if (setting.get("IsNativeMod") or "0") in ("0", ""):
+        for sub in ("Models", "Skills"):
+            path = os.path.join(mod_dir, sub)
+            if not os.path.isdir(path):
+                continue
+            total = len([f for f in os.listdir(path) if f.endswith(".asset")])
+            bad = unmarked_assets(sub)
+            if bad and len(bad) < total:
+                warnings.append(
+                    f"{sub}/ 下 {len(bad)}/{total} 个资源没打 AssetBundle 名 {main_bundle!r}"
+                    f"（这几个不会进包）：" + "、".join(bad[:6]) + ("…" if len(bad) > 6 else "")
+                )
+
+    # 6. 汇总
     log("")
     for msg in warnings:
         warn(msg)

@@ -1672,3 +1672,90 @@ python tools/moddev/jyx2mod.py install shendiao --src Export
 - 新 NPC 的朝向、贴地高度、以及是否挡路。
 - 存档：改动场景后必须用**新存档**（旧档 `areaMask=0` 会让 NavMesh 失效，人物看得见走不动）。
 
+---
+
+# 10-29 修复：进战斗「一个人都没有」
+
+## 一、症状
+
+第一场战斗（`202` 斗武氏兄弟）切进 `00_Battle` 后**战场空白**：BGM 变了，
+但主角和敌人都没有，没有战斗 HUD，点哪里都没反应。
+
+`Player.log`（09:36 那次）里只有三行有用信息：
+
+```
+-----------BattleLoader.InitBattle
+目标技能展现配置不存在, 技能名:[=B5]
+NullReferenceException
+  at BattleRole.SwitchSkillTo (Jyx2.SkillInstance skill)
+  at BattleRole+<RefreshModel>d__47.MoveNext ()
+  at BattleLoader+<InitBattle>d__19.MoveNext ()
+```
+
+`=B5` 出现两次（我方杨过 + 敌方程各崩一次）。
+
+## 二、根因（两层，缺一不可）
+
+链路：`BattleLoader.CreateRole` → `BattleRole.RefreshModel()`
+→ `DataInstance.SwitchAnimationToSkill(Wugongs[0])` → `SwitchSkillTo(skill)`
+→ `skill.GetDisplay()` 返回 null → `display.weaponCode` 抛 NRE。
+
+异常抛在 `InitBattle` 的**协程**里，协程当场中断 —— `roles.Add()`、
+`BattleManager.Instance.StartBattle()` 全都没执行，所以是整场没人。
+
+`GetDisplay()`：
+
+```csharp
+if(!string.IsNullOrWhiteSpace(Data.DisplayFileName))
+    return Jyx2SkillDisplayAsset.Get(Data.DisplayFileName);   // 填了就必须真实存在
+else
+    return Jyx2SkillDisplayAsset.Get(Data.Name);
+```
+
+`Jyx2SkillDisplayAsset.Get` 是 `All.FirstOrDefault(s => s.name == skillName)`，找不到返回 null。
+
+**第一层**：武功表「显示文件名」列整列是字面文本 `=B5`/`=B6`/…（当初想写成 Excel 公式
+但从未求值，`data_type` 是 `s` 不是 `f`，所以 `data_only=True` 也读不出值）。
+29 个技能全部对不上。
+
+**第二层**：就算这列留空回退到技能名，也查不到 —— `Skills/` 目录是从 SAMPLE
+整个复制过来的，29 个 asset 里只有 8 个是通用条目（普通攻击/野狼/黑熊/毒蛇/用毒/解毒/医疗/暗器），
+shendiao 自己的 21 个技能（全真剑法、玉女剑法、蛤蟆功、打狗棒法、黯然销魂掌…）**一个都没有**。
+
+## 三、修复
+
+1. `tools/shendiao/gen_skill_displays.py --mod shendiao --apply`
+   → 按显式映射表复制同武器类型的模板 asset（剑/刀/长柄/空手/医疗/暗器），改 `m_Name`、
+   换新 GUID、写 `assetBundleName: shendiao_mod`，生成 21 个。
+2. `tools/shendiao/gen_model_assets.py --mod shendiao --apply`
+   → 顺带查出**另外 8 个角色也没有 ModelAsset**（公孙绿萼、樊一翁、裘千尺、陆无双、
+   周伯通、瑛姑、一灯、华山派弟子）—— 这些在场景/战斗里会随机变成别人，已一并生成
+   （模板：程英/庙祝/孙婆婆/郭芙/柯镇恶/李莫愁/寿眉大师/鹿清笃）。
+3. `武功.xlsx` H 列改成静态技能名（29 行），重新 `jyx2mod.py configs shendiao`，
+   `SkillConfig.lua` 里 `[[=B*]]` 已归零。
+4. 重新导出：`shendiao_mod` 78.76 MB / **318 个资源**（289 + 21 skills + 8 models），
+   `shendiao_maps` 363.21 MB / 45 个资源，已 install 到 Steam 目录（09:52）。
+
+## 四、防回归
+
+`tools/moddev/jyx2mod.py check <mod>` 新增第 5 步「战斗资源齐全性」：
+
+- `SkillConfig.lua` 的每条技能，`DisplayFileName`（空则 Name）必须能在 `Skills/` 找到同名 `.asset`
+  → 缺失 = **error**（进战斗必崩、战场空白）
+- `CharacterConfig.lua` 的每个角色，`ModelFileKey`（空则 Name）必须能在 `Models/` 找到同名 `.asset`
+  → 缺失 = **error**（随机变脸）
+- 非内置 MOD 的 `Models/` `Skills/` 若「大部分打了 bundle 名、个别漏了」→ warning
+
+四个 MOD 复核：shendiao「一切正常」，SAMPLE/JYX2/xiastart_roguelike 无错误；
+`selftest.py` 三个内置 MOD 错误数仍为 0。
+
+## 五、这次仍然只能进游戏验的
+
+- 战斗里 21 个新技能的动作是否自然（现在全是借模板：剑法借扫叶/落红/翔云/醉灯，
+  拳掌借罗汉/伏虎/牛角…，`weaponCode` 是对的，但动作不是专属的）。
+- 8 个新角色借了别人的脸，看是否需要换更像的模板（改 `gen_model_assets.py`
+  里的 `PREFERRED_TEMPLATES` 重跑即可）。
+- 如果不满意某个技能的动画，改 `gen_skill_displays.py` 的 `PREFERRED_TEMPLATES`
+  → 删掉对应 `Skills/<名>.asset(+.meta)` → 重跑 `--apply` → 重新导出。
+
+

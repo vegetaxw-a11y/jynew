@@ -287,7 +287,70 @@ Unity 的 AssetBundle 只收「显式打了 bundle 名」+「被它们引用到�
 ```
 
 判断有没有打进去，看 **bundle 体积 / 构建日志的资源数**（shendiao 从 35.2MB、206 个资源
-变成 78.8MB、289 个资源），**不要**看 `*.manifest` 里的 Assets 列表 —— 它不列这些后来加进来的资源。
+变成 78.8MB、289 个资源；补齐技能与模型后又到了 78.76MB、318 个资源），
+**不要**看 `*.manifest` 里的 Assets 列表 —— 它不列这些后来加进来的资源。
+
+### 6. 进战斗"一个人都没有"——技能显示配置缺失（最隐蔽的一个）
+
+战场切进来了、BGM 也换了，但**连主角都不出现**，没有 HUD，点哪里都没反应。
+日志里只有三行关键信息：
+
+```
+-----------BattleLoader.InitBattle
+目标技能展现配置不存在, 技能名:[xxx]
+NullReferenceException
+  at BattleRole.SwitchSkillTo (Jyx2.SkillInstance skill)
+  at BattleRole+<RefreshModel>d__47.MoveNext ()
+  at BattleLoader+<InitBattle>d__19.MoveNext ()
+```
+
+链路是 `BattleLoader.CreateRole` → `BattleRole.RefreshModel()` →
+`DataInstance.SwitchAnimationToSkill(DataInstance.Wugongs[0])` → `SwitchSkillTo(skill)`：
+
+```csharp
+var display = skill.GetDisplay();      // Jyx2SkillDisplayAsset.Get(...) 查不到 → null
+var weaponCode = display.weaponCode;   // → NullReferenceException
+```
+
+**异常抛在 `InitBattle` 的协程里，协程当场中断**：`CreateRole` 之后的 `roles.Add()`
+以及最后的 `BattleManager.Instance.StartBattle()` 全都不会执行 —— 所以是"整场战斗没人"，
+而不是"某个敌人没出来"。
+
+`GetDisplay()` 的查找规则很死：
+
+```csharp
+if(!string.IsNullOrWhiteSpace(Data.DisplayFileName))
+    return Jyx2SkillDisplayAsset.Get(Data.DisplayFileName);   // 填了就必须真实存在
+else
+    return Jyx2SkillDisplayAsset.Get(Data.Name);              // 留空则用技能名
+```
+
+所以武功表「显示文件名」这一列**要么留空、要么写一个真实存在的 `Skills/<名字>.asset`**。
+shendiao 同时犯了两个错：这列整列是字面文本 `=B5`（当初想写成 Excel 公式但没求值），
+而且 `Skills/` 是从 SAMPLE 复制来的，只有 8 个通用条目（普通攻击/野狼/黑熊/医疗…）
+能和技能表对上，本作自己的 21 个技能一个 display 资源都没有。
+
+修法：`python tools/shendiao/gen_skill_displays.py --mod shendiao --apply`
+（复制同武器类型的模板 asset → 改 `m_Name` → 新 GUID → 打 bundle 名）。
+`jyx2mod.py check` 现在会直接报"哪个技能缺 display"。
+
+### 7. 人物表新增一行，就要补一个 `Models/<ModelFileKey>.asset`
+
+`RoleInstance` 取模型：
+
+```csharp
+if (!string.IsNullOrWhiteSpace(Data.ModelFileKey))
+    return ModelAsset.Get(Data.ModelFileKey);
+else
+    return ModelAsset.Get(Data.Name);
+```
+
+`ModelAsset.Get` 找不到就 `LogError` + **随机挑一个模型**，表现是
+「公孙绿萼长成了大胡子」「一灯变成了小兵」，没有任何显眼报错。
+本轮就是这么漏掉了 8 个新角色（公孙绿萼、樊一翁、裘千尺、陆无双、周伯通、瑛姑、一灯、华山派弟子）。
+
+修法：`python tools/shendiao/gen_model_assets.py --mod shendiao --apply`
+（显式映射表 `PREFERRED_TEMPLATES` 指定每个新角色借用哪个现有模型，改脸就改这张表重跑）。
 
 
 

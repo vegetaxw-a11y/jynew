@@ -489,6 +489,13 @@ BoxCollider 1×1×1、中心在物体位置 → 范围 `[y-0.5, y+0.5]`。
 | 4 | 包体积莫名涨到 3 倍 | `<id>_maps` 从 114MB → 363MB | 增量导出跳过 `base_assets`，共享贴图/Shader 被复制进 MOD 包 | 分发前 `--with-base` 全量打一次 |
 | 5 | 导出后 `git status` 多出一堆改动 | 3 个 water `.mat` + `DOTweenSettings.asset` + `EditorUserSettings.asset` | Unity batchmode 顺手重新序列化 | 导出后 `git checkout --` 这几个文件，**别提交** |
 
+#### 战斗（缺失时不报错，只是"静默错乱"，最难查）
+
+| # | 坑 | 症状 | 根因 | 对策 |
+| --- | --- | --- | --- | --- |
+| 28 | **进战斗一个人都没有**（连主角都不出现） | 场景切了、BGM 变了，但战场空白、无 HUD、无法操作；日志只有 `目标技能展现配置不存在, 技能名:[xxx]` + `NullReferenceException at BattleRole.SwitchSkillTo` | `SkillConfig.DisplayFileName`（留空则用技能名）找不到同名 `Skills/<名字>.asset` → `skill.GetDisplay()` 返回 null → `display.weaponCode` 抛 NRE；异常发生在 `BattleLoader.InitBattle` 协程里，协程当场中断，`roles.Add()` 和 `BattleManager.StartBattle()` 都没执行 | `python tools/shendiao/gen_skill_displays.py --mod <id> --apply`；`jyx2mod.py check` 已内置这项校验 |
+| 29 | NPC/敌人**随机变成别人** | 没有任何显眼报错，只是"站在那的人不对" | 人物表 `ModelFileKey`（留空则用角色名）找不到同名 `Models/*.asset` → `ModelAsset.Get` 返回 null → 调用方退化成随机模型 | `python tools/shendiao/gen_model_assets.py --mod <id> --apply`；`jyx2mod.py check` 已内置这项校验 |
+
 #### 场景与交互
 
 | # | 坑 | 症状 | 根因 | 对策 |
@@ -541,6 +548,7 @@ BoxCollider 1×1×1、中心在物体位置 → 范围 `[y-0.5, y+0.5]`。
 | **多语言** | UI 文本走 `i18n`（`"交互".GetContent(...)`）；对话文本目前直接写死中文 | 要上多语言得改成 key |
 | **`PreloadedLua` 热更** | `hotfix.lua` 在 AB 里，改了还是要重打重装；它只能改 Lua 逻辑，改不了场景 | 当"补丁层"用：`hotfix.lua` 里覆盖全局函数 |
 | **`scene_api.BindEvent`** | 半成品 API，会加 `NavMeshObstacle`(Capsule 0.5)，绑在过道上就是人造空气墙 | 只在开阔处用，或手工摆触发器 |
+| **战斗必崩的三件套** | 技能 display 资源、角色模型资源、战斗表引用的角色 id —— 任一缺失都不是"报错退出"，而是"战场空白 / 人物变脸" | `jyx2mod.py check`（含技能/模型齐全性）+ `check_story.py` |
 | **平台差异** | Android 扫 `/storage/emulated/0/jynew/mods/`，`install` 不管 | 手动拷整个 `<id>/` 目录 |
 
 ---
