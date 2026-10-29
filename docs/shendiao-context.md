@@ -1638,11 +1638,30 @@ NativeFormatImporter:
 4. 华山 `81_siguoya` 崖顶、绝情谷底 `80` 的 NavMesh 可达性。
 5. **用新存档**（旧档 `WorldMapSaveData.areaMask=0` 会让 NavMesh 失效）。
 
-## 四、安装（供参考，未执行）
+## 四、安装（已执行）
 
 ```powershell
+$env:JYX2_GAME_DIR='C:\Program Files (x86)\Steam\steamapps\common\群侠传，启动！'
 python tools/moddev/jyx2mod.py install shendiao --src Export
 ```
+
+游戏目录是自动探测到的（`wuxia_launch.exe` 所在目录），`--src Export` 和
+`--src Export/shendiao` 都能用（`resolve_export_dir()` 两个都认）。
+
+结果：`<游戏>\wuxia_launch_Data\mods\shendiao` 共 442.0 MB
+
+| 文件 | 大小 | 时间 |
+| --- | --- | --- |
+| `shendiao_maps` | 363.2 MB | 10-28 23:46 |
+| `shendiao_mod` | 78.8 MB | 10-28 23:45 |
+| `shendiao.xml` | 描述文件 | CreateTime 20261028 23:44:31 |
+
+旧包（135.8 MB / 35.1 MB，21:46 那版**不含 Models**）已被 `rmtree` 覆盖清理；
+`AppData\LocalLow\jynew\群侠传启动\mods` 下没有残留（`--persistent` 才是那个位置，本次没用）。
+`jyx2mod list` 已能看到：`wuxia_launch_Data\mods: sample, shendiao`。
+
+> 注意 `shendiao.xml` 里 `Version=""` 是空的（`ModSetting.asset` 没填版本号），
+> 不影响加载，只是 MOD 选择界面不显示版本。
 
 ## 五、仍然没验证的（只能进游戏看）
 
