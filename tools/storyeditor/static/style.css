@@ -125,7 +125,7 @@ main {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 #eventList .ev-meta {
-  display: flex; align-items: center; gap: 6px;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap; row-gap: 4px;
   margin-top: 5px; font-size: 11px; color: var(--muted);
 }
 #eventList .avatars { display: flex; margin-right: 8px; }
@@ -150,6 +150,51 @@ main {
 .chip.choice { border-color: var(--purple); color: #c9a8ff; }
 .chip.flag { border-color: var(--amber); color: #f0c473; }
 .chip.battle { border-color: var(--red); color: #f0a898; }
+.chip.entry-interactive { border-color: var(--blue); color: #a8c4ff; }
+.chip.entry-enter { border-color: var(--teal); color: #a5e6e6; }
+.chip.entry-useitem { border-color: var(--amber); color: #f0c473; }
+.chip.entry-leave { border-color: var(--purple); color: #c9a8ff; }
+.chip.entry-none { border-color: var(--red); color: #f0a898; }
+
+/* ---------------------------------------------------------------- 入口条（在哪张图 / 怎么触发） */
+#entryBar {
+  padding: 7px 12px 8px;
+  background: #111823;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+#entryBar .entry-head {
+  display: flex; align-items: baseline; gap: 6px;
+  white-space: nowrap; overflow: hidden;
+}
+#entryBar .pin { color: var(--gold); }
+#entryMap {
+  display: inline-block; max-width: 46%;
+  color: #f0dcae; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#entryBar #entryScene {
+  font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#entryBar #entryHint { font-size: 11px; flex: none; }
+#entryList { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
+.entry-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid #33415a;
+  color: #b9c7da;
+  background: #0d1117;
+  font: 11px/1.6 ui-monospace, "Microsoft YaHei", monospace;
+}
+.entry-chip.interactive { border-color: var(--blue); color: #a8c4ff; }
+.entry-chip.enter { border-color: var(--teal); color: #a5e6e6; }
+.entry-chip.useitem { border-color: var(--amber); color: #f0c473; }
+.entry-chip.leave { border-color: var(--purple); color: #c9a8ff; }
+.entry-chip.warn { border-color: var(--red); color: #f0a898; font-family: inherit; }
+.entry-chip.unreg { border-style: dashed; color: #c9b08a; }
+.entry-row { display: flex; gap: 8px; align-items: baseline; font-size: 11px; color: var(--muted); }
+.entry-row b { color: #cfd9e8; font-weight: 600; }
 
 /* ---------------------------------------------------------------- 画布 */
 #stage { display: flex; flex-direction: column; min-width: 0; }

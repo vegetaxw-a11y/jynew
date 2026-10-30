@@ -710,6 +710,13 @@ python tools/storyeditor/selftest_story.py   # 改了解析/回写逻辑必跑
   `survey_lua.py` 看要不要补
 - 回写是**行级替换**：保留缩进/分号/尾注释/CRLF；带乐观锁（原文对不上返回 409）、改前备份、
   改后 `lint_lua` 自检；人物 Id 不存在直接拒绝
+- **每条剧情会标出「在哪张图、怎么触发」**：解析 `Maps/GameMaps/*.unity` 里挂
+  `GameEvent`（guid `28456c42…`）的 `Level/Triggers/N` 对象，取
+  `m_InteractiveEventId`（走近按交互）/ `m_EnterEventId`（踩点自动跑）/
+  `m_UseItemEventId`（使用物品、宝箱），再加上 `CharacterConfig.LeaveStoryId`（侠客离队剧情）；
+  场景名按 `MapConfig.MapScene` 翻成中文地图名
+- 顺手能看出两类隐患：① 场景没在 `MapConfig` 登记（玩家根本进不去，shendiao 有 20/34 张这样）；
+  ② 脚本没有任何入口（地图里没挂，也不是离队剧情）
 - 它**只改源文件**，游戏里生效仍要 `jyx2mod.py unity` + `install`（Lua 在 `<id>_mod` 里）
 - 详细说明与后续路线见 `tools/storyeditor/README.md`
 

@@ -60,6 +60,71 @@ def test_parse_all(mod):
                                          '（%d 条问题：%s）' % (len(bad), bad[:3])))
 
 
+def test_triggers(mod):
+    print('\n== 2. 触发入口索引（哪张图 + 怎么触发）==')
+    folder = os.path.join(mod.mod_dir, 'Maps', 'GameMaps')
+    bad, total, scenes = [], 0, 0
+    for fn in sorted(os.listdir(folder)):
+        if not fn.endswith('.unity'):
+            continue
+        path = os.path.join(folder, fn)
+        with open(path, 'rb') as fp:
+            raw = fp.read()
+        # 老办法（字节正则）作为对照，确保结构化解析没漏 / 没多
+        want = {int(x) for x in story_mod.EVENT_RE.findall(raw)}
+        want.discard(-1)
+        rows = story_mod.scan_scene_triggers(story_mod.read_text(path))
+        got = {int(r['event']) for r in rows}
+        total += len(rows)
+        scenes += 1 if rows else 0
+        if want != got:
+            bad.append('%s 缺 %s 多 %s' % (fn, sorted(want - got)[:5], sorted(got - want)[:5]))
+        if not all(r['pos'] and r['object'] for r in rows):
+            bad.append('%s 有入口解析不出对象名或坐标' % fn)
+    check(not bad, '场景结构化解析与字节正则一致（%d 个场景 / %d 条入口）%s' %
+          (scenes, total, '' if not bad else '（%s）' % bad[:3]))
+
+    required = {'event', 'kind', 'label', 'object', 'pos', 'targets', 'scene', 'map',
+                'mapId', 'registered'}
+    broken = [k for k, v in mod.triggers_index.items()
+              for t in v if not required <= set(t)]
+    check(not broken, '入口记录字段完整%s' % ('' if not broken else '（%s）' % broken[:3]))
+    kinds = {t['kind'] for v in mod.triggers_index.values() for t in v}
+    check(kinds and kinds <= set(story_mod.ENTRY_ORDER),
+          '入口种类都在白名单里（%s）' % '、'.join(sorted(kinds)))
+
+    scene_names = {m.get('MapScene') for m in mod.maps.values()}
+    wrong = [s['scene'] for s in mod.scenes.values()
+             if s['registered'] != (s['scene'] in scene_names)]
+    unreg = sum(1 for s in mod.scenes.values() if not s['registered'])
+    check(not wrong, '「地图是否在 MapConfig 登记」标记正确（未登记 %d/%d 张）%s' %
+          (unreg, len(mod.scenes), '' if not wrong else '（%s）' % wrong[:3]))
+
+    pomiao = mod.scenes.get('62_pomiao')
+    check(pomiao is not None and pomiao['map'] == '破庙',
+          '场景名能翻成地图中文名（62_pomiao -> %s）' %
+          (pomiao and pomiao['map']))
+
+    multi = [eid for eid in mod.event_ids()
+             if len({t['scene'] for t in mod.event_triggers(eid)}) > 1]
+    check(bool(multi), '同一事件挂在多张图时能全部列出（%d 条，例如 %s）' %
+          (len(multi), multi[:3]))
+
+    leave = [t for v in mod.triggers_index.values() for t in v if t['kind'] == 'leave']
+    check(bool(leave) and all(t.get('char') for t in leave),
+          '人物表 LeaveStoryId 也算入口（%d 条，例如 %s 离队）' %
+          (len(leave), leave[0]['char'] if leave else '?'))
+
+    summary = {e['id']: e for e in mod.events()}
+    check(all('triggers' in e and 'kinds' in e and 'scenes' in e
+              for e in summary.values()), '列表摘要带上 triggers / kinds / scenes')
+    mismatched = [e['id'] for e in summary.values()
+                  if e['kinds'] != sorted({t['kind'] for t in e['triggers']},
+                                          key=lambda k: story_mod.ENTRY_ORDER.get(k, 9))]
+    check(not mismatched, '列表里的 kinds 与 triggers 对得上%s' %
+          ('' if not mismatched else '（%s）' % mismatched[:3]))
+
+
 def make_temp_mod(mod, names):
     """拷一份最小 MOD（配置表 + 指定剧本）到临时目录，随便改不会伤到真文件。"""
     tmp = tempfile.mkdtemp(prefix='storyeditor_')
@@ -71,7 +136,7 @@ def make_temp_mod(mod, names):
 
 
 def test_roundtrip(mod):
-    print('\n== 2. 回写保真（LF / CRLF / 缩进 / 分号）==')
+    print('\n== 3. 回写保真（LF / CRLF / 缩进 / 分号）==')
     tmp = make_temp_mod(mod, ['2.lua', '1001.lua'])
     tmod = story_mod.ModData(tmp)
     try:
@@ -121,7 +186,7 @@ def _roundtrip_one(mod, name, line_no):
 
 
 def test_guard(mod):
-    print('\n== 3. 护栏 ==')
+    print('\n== 4. 护栏 ==')
     tmp = make_temp_mod(mod, ['2.lua'])
     tmod = story_mod.ModData(tmp)
     try:
@@ -158,6 +223,7 @@ def main():
     print('MOD : %s（%s）' % (meta['modName'], meta['modId']))
     print('统计: %s' % meta['counts'])
     test_parse_all(mod)
+    test_triggers(mod)
     test_roundtrip(mod)
     test_guard(mod)
 

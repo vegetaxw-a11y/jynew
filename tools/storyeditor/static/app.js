@@ -36,6 +36,101 @@
     return id == null ? '' : '/api/head/' + id + '.png';
   }
 
+  /* ---------------------------------------------------------------- 入口（在哪张图 / 怎么触发） */
+  function entryKind(kind) {
+    const list = (state.meta && state.meta.entryKinds) || [];
+    return list.find(k => k.kind === kind) || { kind: kind, label: kind, hint: '' };
+  }
+
+  function kindLabel(kind) {
+    return entryKind(kind).label;
+  }
+
+  function fmtPos(pos) {
+    if (!pos) return '';
+    return '(' + pos.map(v => Math.round(Number(v) * 10) / 10).join(', ') + ')';
+  }
+
+  // 一个入口一行：交互 · Level/Triggers/5 · (0.8, 5.5, -6.0)
+  function entryText(t, withMap) {
+    const parts = [];
+    if (withMap && t.map) parts.push(t.map);
+    parts.push(kindLabel(t.kind));
+    if (t.kind === 'leave') {
+      if (t.char) parts.push('「' + t.char + '」');
+    } else if (t.object) {
+      parts.push(t.object);
+    }
+    if (t.pos) parts.push(fmtPos(t.pos));
+    return parts.join(' · ');
+  }
+
+  function entryChipHTML(t, withMap) {
+    const info = entryKind(t.kind);
+    const unreg = t.registered === false && t.scene;
+    const tip = info.hint + (unreg ? '\n⚠ 这张图没在 MapConfig 登记，玩家正常玩进不去' : '');
+    return '<span class="entry-chip ' + t.kind + (unreg ? ' unreg' : '') +
+      '" title="' + esc(tip) + '">' + (unreg ? '⚠ ' : '') +
+      esc(entryText(t, withMap)) + '</span>';
+  }
+
+  function noEntryHTML() {
+    return '<span class="entry-chip warn" title="地图里没有 GameEvent 指向它：可能只是被别的事件/' +
+      '控制台临时调用，也可能已经废弃">⚠ 没有任何入口，玩家正常玩进不来</span>';
+  }
+
+  function renderEntryBar(g) {
+    const bar = $('#entryBar');
+    const trs = (g && g.triggers) || [];
+    bar.classList.remove('hidden');
+    const list = $('#entryList');
+    if (!trs.length) {
+      $('#entryMap').textContent = '未挂接';
+      $('#entryScene').textContent = '';
+      $('#entryHint').textContent = '';
+      list.innerHTML = noEntryHTML();
+      return;
+    }
+    const maps = [];
+    const scenes = [];
+    trs.forEach(t => {
+      if (t.map && maps.indexOf(t.map) < 0) maps.push(t.map);
+      if (t.scene && scenes.indexOf(t.scene) < 0) scenes.push(t.scene);
+    });
+    const sceneTrs = trs.filter(t => t.scene);
+    const allUnreg = sceneTrs.length > 0 && !sceneTrs.some(t => t.registered);
+    const mapText = maps.length > 2
+      ? maps.slice(0, 2).join(' / ') + ' 等 ' + maps.length + ' 张图'
+      : maps.join(' / ');
+    $('#entryMap').textContent = (maps.length ? mapText : '不在任何地图里') +
+      (allUnreg ? '（MapConfig 未登记）' : '');
+    $('#entryScene').textContent = (scenes.length ? '场景 ' + scenes.join('、') : '') +
+      (trs[0].mapId != null ? ' · 地图 id ' + trs[0].mapId : '');
+    const kinds = [];
+    trs.forEach(t => { if (kinds.indexOf(t.kind) < 0) kinds.push(t.kind); });
+    $('#entryHint').textContent = '共 ' + trs.length + ' 处入口：' +
+      kinds.map(kindLabel).join(' / ') + '（悬停看触发方式）';
+    // 多张图时每条都带地图名，免得不知道是哪张图的触发点
+    const withMap = maps.length > 1;
+    list.innerHTML = trs.map(t => entryChipHTML(t, withMap)).join('');
+    if (allUnreg) {
+      list.innerHTML += '<span class="entry-chip warn" title="MapConfig.lua 里没有这张图，' +
+        '游戏不会加载它；要启用得先在地图表里登记，再在大地图加落点">⚠ 这几张图都没在 ' +
+        'MapConfig 登记，玩家进不去</span>';
+    }
+  }
+
+  // 列表分组用：优先「已登记的地图」，其次离队剧情，最后「没挂接」
+  function primaryGroup(e) {
+    const trs = (e.triggers || []).filter(t => t.scene);
+    const t = trs.find(x => x.registered) || trs[0];
+    if (t) return t.map;
+    if ((e.triggers || []).some(x => x.kind === 'leave')) return '侠客离队剧情';
+    return '未挂接任何入口';
+  }
+
+  const GROUP_ORDER = { '未挂接任何入口': 2, '侠客离队剧情': 1 };
+
   /* ---------------------------------------------------------------- 列表 */
   function renderSidebar() {
     const list = $('#eventList');
@@ -52,18 +147,31 @@
 
     const groups = new Map();
     events.forEach(e => {
-      const where = (e.maps && e.maps.length) ? e.maps[0].map : '未挂场景';
+      const where = primaryGroup(e);
       if (!groups.has(where)) groups.set(where, []);
       groups.get(where).push(e);
     });
 
     const frag = document.createDocumentFragment();
-    Array.from(groups.keys()).sort().forEach(where => {
+    const names = Array.from(groups.keys()).sort((a, b) => {
+      const oa = GROUP_ORDER[a] == null ? 0 : GROUP_ORDER[a];
+      const ob = GROUP_ORDER[b] == null ? 0 : GROUP_ORDER[b];
+      if (oa !== ob) return oa - ob;
+      return a.localeCompare(b, 'zh-Hans-CN');
+    });
+    names.forEach(where => {
+      const grp = groups.get(where);
+      const allUnreg = grp.every(e => {
+        const st = (e.triggers || []).filter(t => t.scene);
+        return st.length > 0 && !st.some(t => t.registered);
+      });
       const head = document.createElement('div');
       head.className = 'group-title';
-      head.textContent = where;
+      head.innerHTML = esc(where) + ' <span class="muted">' + grp.length + ' 条</span>' +
+        (allUnreg ? ' <span class="chip entry-none" title="MapConfig 里没登记这张图，' +
+          '玩家正常玩进不去">未登记</span>' : '');
       frag.appendChild(head);
-      groups.get(where).forEach(e => frag.appendChild(eventRow(e)));
+      grp.forEach(e => frag.appendChild(eventRow(e)));
     });
     list.innerHTML = '';
     list.appendChild(frag);
@@ -74,9 +182,23 @@
     const li = document.createElement('li');
     li.dataset.id = e.id;
     const chips = [];
+    const kinds = e.kinds || [];
+    if (!kinds.length) chips.push('<span class="chip entry-none">无入口</span>');
+    else kinds.forEach(k => chips.push('<span class="chip entry-' + k + '">' +
+      esc(kindLabel(k)) + '</span>'));
+    if ((e.scenes || []).length > 1) {
+      chips.push('<span class="chip">' + e.scenes.length + ' 张图</span>');
+    }
+    const sceneTrs = (e.triggers || []).filter(t => t.scene);
+    if (sceneTrs.length && !sceneTrs.some(t => t.registered)) {
+      chips.push('<span class="chip entry-none" title="MapConfig 里没登记，玩家进不去">图未登记</span>');
+    }
     if (e.choices) chips.push('<span class="chip choice">选项 ' + e.choices + '</span>');
     if (e.flags.length) chips.push('<span class="chip flag">旗标 ' + e.flags.length + '</span>');
     if (e.battles.length) chips.push('<span class="chip battle">战斗 ' + e.battles.length + '</span>');
+    const where = primaryGroup(e);
+    li.title = where + ' · ' + ((e.triggers || []).map(t => entryText(t, false)).join('；') ||
+      '没有任何入口');
     li.innerHTML =
       '<div class="ev-top"><span class="ev-id">' + esc(e.id) + '</span>' +
       '<span class="ev-title">' + esc(e.title || '(无标题)') + '</span></div>' +
@@ -102,6 +224,7 @@
       state.node = null;
       $('#graphTitle').textContent = '#' + id + ' · ' + (graph.title || graph.file) +
         '（' + graph.stats.talk + ' 句）';
+      renderEntryBar(graph);
       graphApp.setData(graph);
       markActive(id);
       try { history.replaceState(null, '', '#' + id); } catch (err) { /* file:// 下会抛 */ }
@@ -185,7 +308,11 @@
     row.dataset.line = n.line || 0;
     let text;
     if (n.kind === 'start') {
-      text = '<b>开始</b> 事件入口';
+      const trs = (state.graph && state.graph.triggers) || [];
+      text = '<b>开始</b> ' + (trs.length
+        ? '入口：' + esc(entryText(trs[0], true)) +
+          (trs.length > 1 ? ' 等 ' + trs.length + ' 处' : '')
+        : '入口：地图里没有挂这条剧情');
     } else if (n.kind === 'condition') {
       text = '<b>条件</b> ' + esc(n.condText || n.cond);
     } else if (n.kind === 'choice') {
@@ -218,13 +345,48 @@
   }
 
   /* ---------------------------------------------------------------- 概览 */
+  function triggerSectionHTML(g) {
+    const trs = g.triggers || [];
+    const hinted = [];
+    const rows = ['<div class="section-title">触发入口（在哪张图、怎么进）</div>'];
+    if (!trs.length) {
+      rows.push('<div class="err">地图里没有任何 GameEvent 指向这条剧情：玩家正常玩进不来。' +
+        '可能是被别的事件动态 <code>ModifyEvent</code> 挂上、控制台手动跑，或者已经废弃。</div>');
+      return rows.join('');
+    }
+    trs.forEach(t => {
+      const info = entryKind(t.kind);
+      let where;
+      if (t.kind === 'leave') {
+        where = '侠客「' + esc(t.char || '?') + '」离队时播（人物表 LeaveStoryId）';
+      } else {
+        where = esc(t.map || '?') + (t.scene ? '（' + esc(t.scene) + '）' : '') +
+          ' · <b>' + esc(t.object || '?') + '</b>' + (t.pos ? ' @' + esc(fmtPos(t.pos)) : '') +
+          (t.registered === false ? ' <span class="err">（MapConfig 未登记，玩家进不去）</span>' : '');
+      }
+      rows.push('<div class="entry-row"><span class="chip entry-' + t.kind + '">' +
+        esc(info.label) + '</span><span>' + where + '</span></div>');
+      if (info.hint && hinted.indexOf(t.kind) < 0) {
+        hinted.push(t.kind);
+        rows.push('<div class="note">' + esc(info.hint) + '</div>');
+      }
+    });
+    return rows.join('');
+  }
+
   function summaryHTML() {
     const g = state.graph;
     if (!g) return '<div class="empty">还没有选中剧情</div>';
     const s = g.stats;
     const rows = [];
+    rows.push(triggerSectionHTML(g));
+    rows.push('<div class="section-title">这条剧情</div>');
+    const maps = [];
+    (g.triggers || []).forEach(t => {
+      if (t.map && maps.indexOf(t.map) < 0) maps.push(t.map);
+    });
     rows.push('<div class="kv">文件 <b>' + esc(g.file) + '</b> · ' + g.lineCount + ' 行 · ' +
-      (g.maps || []).map(m => esc(m.map)).join('、') + '</div>');
+      (maps.length ? esc(maps.join('、')) : '未挂地图') + '</div>');
     rows.push('<div class="kv">节点：对白 <b>' + s.talk + '</b> / 动作 <b>' + s.action +
       '</b> / 条件 <b>' + s.condition + '</b> / 选项 <b>' + s.choice + '</b> / 跳转点 <b>' +
       s.label + '</b> / 结束 <b>' + s.end + '</b></div>');

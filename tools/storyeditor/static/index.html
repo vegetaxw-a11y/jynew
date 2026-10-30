@@ -16,7 +16,7 @@
     </div>
   </div>
   <div class="spacer"></div>
-  <input id="search" type="search" placeholder="搜索：事件号 / NPC / 对白 / 旗标">
+  <input id="search" type="search" placeholder="搜索：事件号 / 地图 / NPC / 对白 / 旗标">
   <button id="btnRefresh" class="ghost" title="重读配置表与场景索引">刷新</button>
   <button id="btnValidate" class="ghost" title="跑 lint_lua.py + check_story.py">校验剧本</button>
 </header>
@@ -45,6 +45,16 @@
       <button data-act="start" title="跳到「开始」节点">定位开始</button>
       <button data-act="json" title="导出当前图 JSON（含节点/边）">导出</button>
       <button data-act="source" title="看 / 改整份 Lua 源码">源码</button>
+    </div>
+    <div id="entryBar" class="hidden">
+      <div class="entry-head">
+        <span class="pin">📍</span>
+        <b id="entryMap">—</b>
+        <span id="entryScene" class="muted"></span>
+        <span class="spacer"></span>
+        <span id="entryHint" class="muted"></span>
+      </div>
+      <div id="entryList" class="entry-list"></div>
     </div>
     <div id="canvasWrap">
       <svg id="canvas"></svg>
