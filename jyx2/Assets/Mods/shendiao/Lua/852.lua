@@ -1,2 +1,2 @@
-Talk(0, "（另一张案，砚台里的墨早干透了。）")
+Talk(0, "（另一张案，砚台里的墨早干透了。）", EXPR.think)
 do return end;

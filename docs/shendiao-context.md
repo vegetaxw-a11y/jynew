@@ -1852,3 +1852,1259 @@ _assetsMap[url] = (modId, assetName);   // 后登记覆盖先登记
 `_inst_scan.py`（某 prefab 被哪些场景引用/摆在哪）、`_obstacles.py`、`_prefab_cols.py`。
 
 
+## 七、2026-10 第二轮：门口空气墙 / 秘籍 / 杨过数值 / 练级区
+
+### 1. 古墓门口"看不见但走不动"——薄片 NavMeshObstacle
+
+`18_gumu` 里有两类 `NavMeshObstacle`：
+
+- **薄片**：`m_Extents.y ≈ 0.04`（门槛 `y=0.043`、台阶 `y=0.10`），`m_Carve: 0`。
+- 椅子/石棺：`y ≈ 0.25–0.34`。
+
+`m_Carve: 0` 时 Unity 用的是"挤出"式避让：Agent 只要和盒子的 XZ 投影相交就被推开。
+4cm 厚的门槛在 Y 上完全不影响判定，等于把整条门洞封死 —— 表现就是"看得见路，
+人物原地打转"。
+
+**结论：薄片障碍不是障碍，是空气墙。** 用 `tools/shendiao/_disable_sills.py`
+按 `--max-y 0.12` 筛出来关掉 `m_Enabled`（椅子 0.25+ 不动）。`18_gumu` 关掉 4 个
+（2 个台阶 `y=0.10`、2 个门槛 `y=0.043`），剩下 5 个（`y=0.5` 的椅子/石墩、柱子）保留。
+静态墙体不靠 Obstacle，靠烘焙好的 NavMesh 挡人，不受影响。
+`_obs.py <scene>` 可以列全场景 Obstacle 的 enabled/carve/extents 核对。
+
+> 修这个脚本时踩的坑：正则漏了 `'--- !u!208 '` 这个块头前缀，导致一条都没匹配到，
+> 却打印"已处理 0 个"看着像成功。
+
+### 2. 蛤蟆功只能练到 1 级 —— 秘籍本来就有，只是没发
+
+`蛤蟆功秘籍` 在 `ItemConfig` 里是 **item 35 / skill 31**，早就配好了；
+`923.lua` 只调了 `LearnMagic2(0, 31, 0)`，没给书。
+
+JYX2 的规则：**`LearnMagic2` 只给 1 级；要继续升级必须用 `ItemType == 2` 的经书**。
+全 MOD 9 处 `LearnMagic2` 逐一对过秘籍表，每门都有对应的书。
+
+`_add_books.py` 在每个 `LearnMagic2` 后补 `AddItem(<bookId>, 1)`，幂等判断看文件尾
+160 字符（原先按"包含 AddItem"判断会重跑就重复插入）。8 个剧本文件共插入 9 行：
+
+| 剧本 | 秘籍 item | 剧本 | 秘籍 item |
+| --- | --- | --- | --- |
+| 210 | 1 | 906 | 142 |
+| 219 | 12 | 913 | 182 |
+| 402 | 20 | 923 | 35（蛤蟆功） |
+| 424 | 76 / 31 | 836 | 49 |
+
+### 3. 杨过的初始数值
+
+`RoleInstance.InitData()` 是**直接照抄配置表**（`Level = Data.Level`、
+`MaxHp = Data.MaxHp`、`MaxMp = Data.MaxMp + 1000`），所以改 `Configs/人物.xlsx`
+即可，不用动 Lua 生成物（`Configs/Lua/` 是 gitignore 的生成目录）。
+
+原值 L1 / 38HP / 27 攻，而第一个拦路 BOSS 鹿清笃是 **L26 / 999HP / 攻 85**，
+紧随其后的武氏兄弟（郭芙 L14 / 武敦儒 L12）也是 230HP / 攻 71–77 —— 原来的杨过
+三招就倒，必输。改成：
+
+| 项 | 原值 | 现值 |
+| --- | --- | --- |
+| Level | 1 | 13 |
+| Exp | 0 | 4300 |
+| 生命/MaxHp | 38 | 300 |
+| MaxMp | 26 | 110 |
+| 攻击 | 27 | 74 |
+| 轻功 | 27 | 60 |
+| 防御 | 27 | 68 |
+
+对照：野狼 L10/200HP/攻70/防30，毒蛇 L10/200HP/攻80/防30，黑熊 L10/200HP/**防90**
+（防太高，练级别用黑熊，磨人）。
+
+### 4. 练级区（`_set_grind.py`）
+
+JYX2 没有随机遇敌。导入的场景里有一批 **三个事件 ID 全是 -1 的空 GameEvent 宿主**
+（原作者给装饰物挂的交互，剧情搬走后闲置），位置确定可达，正好改成"走过去就开打"：
+
+```
+m_InteractiveEventId: -1      # 不弹"交互"按钮
+m_EnterEventId:      3001     # 踩进 BoxCollider 直接开战
+BoxCollider: trigger, 4x3x4
+```
+
+| 地图 | 宿主 | 位置 | 事件 | 小怪 |
+| --- | --- | --- | --- | --- |
+| 百花谷 20_baihuagu | `6` | 16.5, 6.0, 8.5 | 3001 | 140 斗野狼 |
+| 神雕山洞 07_shandong | `5` | 5.69, 0.5, -8.94 | 3002 | 180 斗毒蛇 |
+| 黑龙潭 21_heilongtan | `3` | -4.5, 4.5, 41.23 | 3003 | 180 斗毒蛇 |
+| 铁掌山 48_tiezhangshan | `16` | 34.25, 0.5, 5.02 | 3004 | 140 斗野狼 |
+| 一灯居 47_yidengju | `1` | 10.28, 0.5, 20.4 | 3005 | 140 斗野狼 |
+| 古墓 18_gumu | 克隆 `1` | -15, 0.5, -8.6 | 3006 | 180 斗毒蛇 |
+
+`18_gumu` 没有空宿主，用 `--clone` 从 `217` 那个门触发器复制一份
+（fileID 走 `2151000000` 段），沿 z 轴偏 1.6m —— 那个门洞只在 x=-15 这条线上，
+横着偏会撞墙。
+
+**踩到的坑**：`rebuild()` 直接拼块头，把文件开头的 `%YAML 1.1` + `%TAG !u! ...`
+两行丢了，Unity 解析不了。现在 `rebuild(blocks, prefix)` 保留首块之前的文本。
+已写的 6 个文件用 `_fixhead.py` 补回。
+
+### 5. 这轮待进游戏验的
+
+1. 古墓门口真的能走进去了（若还是走不动 → NavMesh 本身缺那块，要在编辑器里重烘）。
+2. 蛤蟆功秘籍拿在包里，用一下能不能把「蛤蟆功」升到 2 级。
+3. 杨过 L13 打鹿清笃仍然很难，但至少能撑几回合；剧情允许输。
+4. 六张图的练级区：走过去是否会直接开战、战斗结束回到原地会不会反复触发。
+
+
+## 八、AI 头像：一张九宫格设定图 → 切 9 张表情/视角（`gen_sheets.py`）
+
+### 1. 为什么要九宫格
+
+只画一张头像时，人物的情绪、姿态、全身比例全丢了，想"换个表情"就得重新描述、
+重新抽卡，出来的还是另一个人。九宫格把同一个人画九遍（3×3 等分布局），
+一次性得到：**正面三情绪 + 四分之三侧脸 + 全身正面 + 全身侧面 + 惊愕 + 悲愤 + 背身回望**。
+九格画风强制一致，天然就是角色设定表。
+
+### 2. 流水线
+
+```
+gen_sheets.py  --apply
+  ├─ prompt = 角色原著描述 + 固定九格指令（每格内容、顺序、不得画网格线/文字）
+  ├─ POST gateway /v1/images/generations  model=gemini-3-pro-image
+  │     aspect_ratio=1:1  image_size=2K  → data[0].b64_json（2048×2048，约 4~5 MB）
+  ├─ 落盘 Export/heads_sheet/<file>_sheet.png            （整张设定图）
+  ├─ 按 3×3 等分切，每格四边内缩 2%                       （AI 总在格线处留细黑线）
+  ├─ 每格 resize 到 512×512 RGBA → Export/heads_sheet/cells/<file>_1..9.png
+  └─ 第 1 格（正面·平静）写进 jyx2/Assets/Mods/shendiao/BuildSource/head/<file>.png
+        并同步写 .meta（沿用原头像的 sprite 设置，只换 guid）
+```
+
+- 九格是**固定顺序**的，所以切片文件名可以按序号直接对应（`SLOTS` 表）。
+- 除第 1 格外，另外八格先存着 —— 以后若做「对话表情系统」（`Talk` 增加情绪参数、
+  `ChatUIPanel` 换图），素材已经现成。
+- 第 5/6 格是全身像，比例与半身像不同，**不要**直接塞进 512 头像框，否则脸会小一半。
+
+### 3. 命令
+
+```powershell
+$env:TURBO_KEY = 'sk-...'          # 只走环境变量，绝不写进文件/日志
+python tools/shendiao/gen_sheets.py --list              # 看名单
+python tools/shendiao/gen_sheets.py --only 0            # 只做杨过（少年+中年两种）
+python tools/shendiao/gen_sheets.py --apply --only 22   # 只做小龙女并写入 MOD
+python tools/shendiao/gen_sheets.py --apply             # 全量（已有的设定图会走缓存，不重复花钱）
+python tools/shendiao/gen_sheets.py --resplit --apply   # 只重切 + 重写头像，不调接口
+python tools/shendiao/gen_sheets.py --contact           # 拼总览图 Export/heads_sheet/_contact.png
+python tools/shendiao/gen_sheets.py --apply --force --only 22   # 重抽小龙女
+```
+
+**缓存规则**：只要 `Export/heads_sheet/<file>_sheet*.png` 在，就不调接口、直接重切；
+`--force` 才重新出图。所以调内缩比例、调 512 尺寸都免费。
+
+### 4. prompt 写法的三条经验
+
+1. **必须逐格写清内容与顺序**（"第 1 格：正面·平静 —— 正视前方，神情平静…"），
+   只写"九宫格多表情"会得到九张互不相干的脸。
+2. 明确禁止"网格线、边框、序号、文字、标签、水印"。即便写了，模型仍会画**很细**的格线，
+   所以裁切要内缩 2%。
+3. 年龄/身份靠**具体描述**而不是数字：少年写"面庞带少年人的圆润稚气、下颌线条尚未硬朗"，
+   中年写"三十余岁、两鬓斑白、独臂、黑袍"。只写"14 岁"/"36 岁"会出成年脸。
+
+### 5. 这轮产出的坑位（sex/age 都不是随便写的）
+
+- 杨过两种：`0`（十四五岁粗布短褐）+ `0_adult`（三十六岁神雕侠独臂黑袍）。
+  `_adult` 只出设定图，**不写入 MOD**（游戏里只有一张头像，进谷时是少年）。
+- 名单只收 Lua 里 `Talk(id)` 真正出现过的 roleId，避免给人物表里没人用的行白白花钱。
+- 旧头像（借原版金庸人物）已备份到 `Export/heads_backup/`，不满意可整批回滚。
+
+
+
+## 九、精致画风：角色设定卡（`gen_cards.py`）
+
+用户判定第八节的「墨线平涂」**不够精致**，给了参考（国风游戏角色卡：写实 CG 立绘 +
+右侧姓名/身长/色卡面板）。据此新增 `gen_cards.py`，与 `gen_sheets.py` 并存：
+
+| 脚本 | 出什么 | 用途 |
+| --- | --- | --- |
+| `gen_sheets.py` | 3×3 九宫格（多情绪 + 全身 + 侧身），平涂画风 | 切 512 头像 / 表情素材 |
+| `gen_cards.py` | 2:3 精修立绘 + PIL 排版的卡面 | 设定卡、头像的高清来源 |
+
+### 做法要点
+
+1. 立绘用 `aspect_ratio: 2:3`、`image_size: 2K` → 实测回 **1696×2528**（不是 1365×2048，
+   网关按自己的档位取整）。`cover()` 等比填满后居中裁，不拉伸。
+2. **中文绝不交给模型画**（必糊、必错字）。卡面文字全部用 PIL + Windows 字体：
+   名字 `STZHONGS.TTF`（华文中宋）、信息/色卡 `msyh.ttc`。PIL 没有 letter-spacing，
+   用 `draw_spaced()` 逐字画。
+3. 色卡不是写死的：`sample_palette()` 剔除近白背景后 `MEDIANCUT` 量化 8 色，
+   按亮度从浅到深排，再用 `name_of()` 映射到 15 个国风色名（月白/霜银/雾蓝/鸦青…），
+   并跳过已用名，避免一栏里出现两个"月白"。
+4. 角色资料（身长/体重/门派/兵器/身份/竖排台词）在 `PROFILE` 字典里按 roleId 配，
+   没配的走默认，不会空着。
+5. 立绘有 `Export/heads_card/<file>_portrait.png` 就 **REUSE**，只重排卡面不调接口 ——
+   改字体、改色卡、改排版都是零成本。
+
+### 命令
+
+```powershell
+$env:TURBO_KEY = 'sk-...'
+python tools/shendiao/gen_cards.py --only 0            # 出一张（有立绘则只重排卡面）
+python tools/shendiao/gen_cards.py --only 0 --force    # 重抽立绘
+python tools/shendiao/gen_cards.py                     # 全量
+# 产物：Export/heads_card/<file>_portrait.png（1696×2528）
+#       Export/heads_card/<file>_card.png    （2100×2048）
+```
+
+卡面尺寸：左立绘 1365×2048，右面板 735×2048，中线 2px `#C6C9CF`。
+
+### 待定（等用户拍板）
+
+- 少年杨过当前偏"秀气"；嫌不够英气就在角色描述里加「眉骨略高、下颌角清晰、薄唇」。
+- 参考图的华丽感（水晶流苏/银饰/泛光）来自角色本身是富贵仙子；粗布少年不该硬加饰品，
+  若要求整批更华丽，需要按角色分档写 `ROSTER` 里的 description。
+- 头像仍要从立绘脸部裁 512（下一步做自动定位）；九宫格保留给"表情系统"备用。
+- 已按旧画风覆盖过 6 张头像（0/10/11/20/21/22），原图在 `Export/heads_backup/`，可整体回滚。
+
+## 十、2026-10-29 定稿：精修画风 + 九宫格裁切（正式流水线）
+
+用户看过设定卡后拍板：**画风要写实 CG 那套，但产物必须是每人一张九宫格、再切 9 张表情头像**。
+于是 `gen_sheets.py` 不再是"平涂备用方案"，它是**唯一正式产物**，`gen_cards.py` 变成宣传卡/高清来源。
+
+### 1. 画风的单一来源
+
+```
+gen_cards.STYLE_BODY        ← 只改这一处
+   ├─ gen_cards.py  用它拼设定卡立绘 prompt
+   └─ gen_sheets.py import gen_cards as CG，SHEET_STYLE = 九格约束 + CG.STYLE_BODY
+```
+
+以后要调"精致度/写实度/配色"，只动 `STYLE_BODY`，两套产物自动同步。
+
+### 2. 4K 是默认该用的档
+
+| image_size | 出图 | 单张耗时 | 每格像素 | 切 512 效果 |
+| --- | --- | --- | --- | --- |
+| 2K | 2048×2048 | 35~55s | 682 | 够用 |
+| **4K** | **4096×4096** | **67~93s** | **1365** | 锐利、发丝细节保留 |
+
+```powershell
+python tools/shendiao/gen_sheets.py --apply --size 4K
+```
+
+4K 只是"下采样"，512 头像的清晰度上限由它决定 —— 值得多花 30 秒。
+
+### 3. 九格固定内容（`SLOTS`）
+
+| 格 | 内容 | 用途 |
+| --- | --- | --- |
+| 1 | 正面·平静 | **写进 MOD 头像**（`BuildSource/head/<id>.png`） |
+| 2 | 正面·含怒 | 表情系统备用 |
+| 3 | 正面·微笑 | 表情系统备用 |
+| 4 | 侧面·沉思 | 立绘/剧情插图备用 |
+| 5 | 全身·正面 | 立绘备用（**别塞进 512 头像框**，脸会小一半） |
+| 6 | 全身·侧面 | 同上 |
+| 7 | 惊愕 | 表情系统备用 |
+| 8 | 悲恸·决绝 | 表情系统备用 |
+| 9 | 背身回望 | 表情系统备用 |
+
+4K 这一轮模型**没有画格线**（2K 平涂那轮画了），但裁切仍保留 2% 内缩兜底。
+
+### 4. 这一轮踩到的两个新坑（都已修）
+
+**(a) 模型会把"格位图例"翻译成字幕烧进画面**
+`小龙女` 那张九宫格，每格底部都印着一行英文：`Frontal·Calm` / `Frontal·Angry` /
+`Full Body·Side` … —— 因为我当时把 prompt 写成 `第1格：正面·平静 —— 正视前方…` 的图例格式，
+模型把图例当成了"这页需要配文字说明"。两处修正：
+- prompt 改成纯句子：`第一个方格画的是：正视前方，神情平静…`，不再给"名称：描述"的结构；
+- 首尾各插一次 `NO_TEXT` 硬性禁令，并把 `Frontal·Calm` 这个**反面样例**直接写进去。
+另外成品头像走 `avatar_crop()`：取第 1 格**上半 86% 的正方形**，即便模型又在格底烧字，
+也被整块切掉；副作用是脸更大，更适合对话头像框。
+
+**(b) `.meta` 被写成 0 字节**
+`io.open(path,'w').write(meta_for(cid))` —— `open('w')` 先把文件截断，
+`meta_for()` 又恰好拿这个文件当模板读，于是读回空串、写回空串，6 个头像的 `.meta` 全变成 0 字节。
+Unity 会当成新资源重新生成 meta（导入设置 / AB 标记全丢）。
+- 修法：`gen_sheets.ensure_meta()` —— **已存在且非空就一个字都不动**（guid 沿用原样最安全），
+  缺了才复制模板；且**先取文本再 open('w')**。`gen_heads.py` 同处同样改掉。
+- 已误伤的文件用 `git checkout -- <paths>` 恢复，别再手写。
+
+
+### 6. 换模型：`gemini-nano-banana-2.1`
+
+`gen_heads.gen_one()` 增加了 `model` 参数，`gen_sheets.py` 加了 `--model` 开关，其他参数完全不变：
+
+```powershell
+python tools/shendiao/gen_sheets.py --only 29,31,35 --size 4K --model gemini-nano-banana-2.1 --apply
+```
+
+两家的差异（实测）：
+
+| 模型 | 4K 单张耗时 | 画风 | 备注 |
+| --- | --- | --- | --- |
+| `gemini-3-pro-image` | 67~93s | 更"仙侠海报"，皮肤通透、发饰华丽 | 偶发中途 SSL EOF |
+| `gemini-nano-banana-2.1` | 65~195s | 更"游戏资产"，皮肤纹理/胡须更实 | 同一 prompt 下老年角色更准 |
+
+当前成品的模型分布：`0, 0_adult, 10, 11, 20~28` 用 `gemini-3-pro-image`；
+`29~111` 用 `gemini-nano-banana-2.1`。混用没有兼容问题，因为最终都被压成 512。
+`裘千尺` 第一次跑碰到 `SSL: UNEXPECTED_EOF_WHILE_READING`（4K 长连接被掐），
+自动重试 3 次仍失败，单独 `--only 29` 补跑即成功 —— **批量里看到 FAIL 先看是不是网络，别急着改 prompt**。
+
+### 7. 归档 / 体积
+
+- 平涂版九宫格整体归档到 `Export/heads_sheet_flat_1029/`（含旧 cells），要回滚直接用。
+- 用旧"图例格式" prompt 生成的 6 张（`0_adult/10/11/20/21/22`）挪在
+  `Export/heads_sheet/_superseded/`，不参与复用，等新 prompt 重出。
+- 4K 设定图每张约 20 MB，28 张 ≈ 550 MB，全在 `Export/` 下 —— 已被 `.gitignore` 的 `/Export` 拦住，不会入库。
+- 用户给的参考卡面存 `Export/refs/ref_card_shuangyue.jpg`（**第三方游戏美术，绝不入库**）。
+
+
+
+## 十一、头像批量现状（2026-10-29）
+
+- 26 个角色 + `杨过中年` 变体，全部 4K 九宫格出图、切 9 格；`BuildSource/head/<id>.png`
+  统一为 **512×512 RGBA**，取第 1 格上半 86%（实现见 `gen_sheets.avatar_crop`）。
+- 每格剩下的 8 张表情/全身图在 `Export/heads_sheet/cells/<id>_{1..9}.png`，
+  将来做表情系统直接拿来用（文件名就是格号，1 是正面平静）。
+- 已 `jyx2mod.py check shendiao` 通过 → `unity shendiao` 导出（173 MB，含地图包）→ `install` 装进游戏。
+- 脚本自检结果：`pngs 31 bad [] empty_meta []` —— 无双通道错、无空 meta。
+- 待用户在游戏里确认：MOD 头像是否正常显示（**要用新存档**），
+  顺带复核古墓门洞、蛤蟆功书、杨过属性、6 个刷怪区。
+
+
+## 十二、对话表情系统（2026-10-29）
+
+### 1. 为什么能不改 C# 就做到
+
+`ChatUIPanel.ShowCharacter(headId)` 取头像的路径是硬拼出来的：
+
+```csharp
+var url = $"Assets/BuildSource/head/{headId}.png";
+```
+
+**文件名就是 `Talk()` 的第一个参数**。所以"换表情"= 换一个 id，不必碰 C#：
+
+```
+表情虚拟 id = 9000000 + 角色id * 10 + 槽位号(1..9)
+   小龙女·怒  -> 9000000 + 22*10 + 2 = 9000222
+   杨过·沉思  -> 9000000 +  0*10 + 4 = 9000004
+```
+
+槽位号直接沿用 `gen_sheets.SLOTS` 的九宫格顺序：
+`1 平静 / 2 怒 / 3 笑 / 4 沉思 / 5 全身正面 / 6 全身侧面 / 7 惊 / 8 悲恸 / 9 背身回望`。
+槽位 1 就是默认头像 `<角色id>.png`，不额外占图。
+
+### 2. 唯一必须打补丁的地方：`ChangePosition`
+
+`ChatUIPanel.ChangePosition(headId, ShowName)` 用 `headId == 0` 判断"是不是主角"
+（主角头像在右、姓名取玩家自定义名；NPC 在左、姓名查 `CharacterTable`）。
+虚拟 id 进去会被当成 NPC，于是 `Lua/expr.lua` 用 **xLua 热更新**把它还原：
+
+```lua
+util.hotfix_ex(CS.ChatUIPanel, 'ChangePosition', function(self, headId, showName)
+    hotfix_alive = true
+    self:ChangePosition(ExprRealId(headId), showName)   -- hotfix_ex 内调用=原函数
+end)
+```
+
+为什么这条路走得通（三个前提都已验证）：
+
+- `Assets/Editor/HotfixConfig/HotfixConfigs.cs` 的 `by_property` 把 **Assembly-CSharp 全部类型**
+  都登记成可热更新（黑名单只挡 UnityEngine/第三方），`ChatUIPanel` 在其中；
+- 出货版确实注入了热更新代码 —— `Player.log` 里能看到 mod 模板 `hotfix.lua` 对
+  `Jyx2LuaBridge.Talk` 的补丁在刷屏，即 `HOTFIX_ENABLE` 生效；
+- `util.hotfix_ex` 的实现是"临时撤补丁 → 调你的函数 → 恢复"，所以函数体里
+  `self:ChangePosition(...)` 调到的是**原函数**。必须同步、不能 yield，我们这个函数是纯同步的。
+
+自检写在 `expr.lua` 里：每句 `Talk` 内部必然调一次 `ChangePosition`，如果说过一句之后
+`hotfix_alive` 还是 false，就打一行
+`[表情] ChangePosition 热更新未生效：玩家表情头像会显示在左侧（姓名仍正确）`。
+**看到这行说明站位会错**（其余功能正常），此时要么查热更新注入，要么退回默认头像。
+
+### 3. 兜底：`StoryIdNameFixes`
+
+虚拟 id 不在 `CharacterTable` 里，`GetRoleName` 会 `KeyNotFoundException`。
+正常路径下 `ChangePosition` 已经先还原成真实 id，查不到名字的情况不会发生；
+但为了"热更新万一没生效也不崩"，`gen_expr_heads.py` 会把每个虚拟 id 的中文名写进
+`ModSetting.asset` 的 `StoryIdNameFixes`（名字从 `Configs/人物.xlsx` 的 `Name` 列取）。
+
+### 4. 文件与脚本
+
+| 文件 | 作用 |
+| --- | --- |
+| `Lua/expr.lua` | 运行时层：`EXPR` 表、`Talk` 包装、`ChangePosition` 补丁、`HAVE_IDS` 清单 |
+| `Lua/hotfix.lua` | 模板里的 `Talk` 调试打印已注释掉（1123 句台词会刷 1123 行日志） |
+| `ModSetting.asset` | `PreloadedLua: [hotfix, expr]` + 34 条 `StoryIdNameFixes` |
+| `tools/shendiao/tag_expr.py` | 按台词语气自动给 `Talk(id, "…")` 补第三参数（`--stats` / `--apply`） |
+| `tools/shendiao/gen_expr_heads.py` | 从 `Export/heads_sheet/cells/` 裁表情头像写进 MOD，回填 `HAVE_IDS` 与 `StoryIdNameFixes` |
+| `tools/shendiao/expr_selftest.py` | 用 `lupa` 真跑 `expr.lua`（桩掉 `CS`/`util`/`Talk`），不开游戏验证 id 路由与补丁还原 |
+
+剧本写法：
+
+```lua
+Talk(22, "……那你要什么？")
+Talk(0,  "我不要人可怜，也不要人推。", EXPR.sad)
+Talk(0,  "（石室里空荡荡的。）",       EXPR.think)
+```
+
+- **Lua 标识符只认 ASCII**，所以键名是英文：`EXPR.calm/angry/smile/think/shock/sad/lookback`，
+  要写中文就用 `EXPR['怒']`。
+- 不写第三个参数 = 默认头像，老剧本完全不用改。
+- 剧本里写了"没生成图"的表情不会变空白：`expr.lua` 查 `HAVE_IDS`，查不到就退回默认头像并打一行提示。
+
+### 5. 自动打标策略（`tag_expr.py`）
+
+1123 句逐句手标不现实，所以按台词做一次粗分类，宁缺毋滥：
+
+1. **`（…）` 开头的旁白/内心独白 → 沉思**，且优先于关键词判定。
+   旁白里的"笑/哭/怒"是**别人**的表情（"（他们笑着走开了。）"），套在说话人脸上全错。
+   这类占四成多（506 句）；嫌多就把 `THINK_FOR_PAREN = False` 再跑一遍。
+2. 其余按语气词：悲 → 怒 → 笑 → 惊（"罢了/可怜/对不起"、"叛徒/小贼/凭什么"、"笑/哈哈"、"大惊/愕/竟然"）。
+3. 判不出来的**一律不动**（保持默认头像），留给以后手写。
+
+首轮结果：1123 句里标了 531 句（think 506 / angry 11 / sad 9 / smile 4 / shock 1），
+改动 78 个剧本文件；`used_combos()` 用到 34 组"角色+表情"，
+所以 `--apply --used-only` 只出 34 张图（22.4 MB），**不要**默认全量出图（27×5=135 张 ≈ 45 MB）。
+
+新增/改动表情后重跑：
+
+```powershell
+python tools/shendiao/expr_selftest.py                   # 不开游戏验证 expr.lua 的 id 路由
+python tools/shendiao/tag_expr.py --stats                  # 先看报告 Logs/_tag_expr.txt
+python tools/shendiao/tag_expr.py --apply                  # 写回剧本（幂等，已标的不会再改）
+python tools/shendiao/gen_expr_heads.py --apply --used-only # 补图 + 回填 expr.lua / ModSetting.asset
+python tools/shendiao/gen_expr_heads.py --check             # 体检：缺图/尺寸/meta/清单/名字修正
+python tools/moddev/jyx2mod.py unity shendiao --with-base  # 打出体积正常的包（约 176 MB）
+python tools/moddev/jyx2mod.py install shendiao --src Export\shendiao
+```
+
+### 6. 已踩的坑
+
+- `rg -rn PATTERN` 里的 `-r` 是 `--replace`，会把匹配替换成 `n` —— 排查"代码被混淆"假象的元凶。
+  要么去掉 `n`，要么用 `-n`。
+- `ModSetting.asset` 里空列表是写成**单行**的 `StoryIdNameFixes: []`，
+  不是 `Key:` 换行再 `[]`；脚本改它时必须兼容这两种写法。
+- 往 `StoryIdNameFixes` 里塞条目的 YAML 层级必须是
+  `  - Id: N` + **4 空格** `    Name: "…"`。写成 `  - - Id: N`（多打一个短横）或
+  `Name` 只缩 2 格，Unity 反序列化会整块读不出来 —— 表现是名字回退成默认值、
+  `PreloadedLua` 也变空，**而且打包过程一句错都不报**。`gen_expr_heads.py --check`
+  现在逐行对齐校验这个块。
+- `jyx2mod.py unity` 默认 `--no-base`（省 1.8GB 压缩），代价是**共享资源被复制进 MOD 包**：
+  同一次改动 `shendiao_maps` 会是 363 MB；加 `--with-base` 重打 base 后只有 136 MB。
+  本地反复调试用 `--no-base` 图快，**要装进游戏就带 `--with-base`**，
+  否则 installed 体积会翻 2.5 倍。
+- 打包是"起 Unity 前就判定要不要打"，判定看的是**源文件 mtime vs 产物 mtime**
+  （`mod_is_fresh`）。边打包边改 Lua 会被判成"没改动"而打进旧内容 ——
+  改完源码再打包，或者 `(Get-Item xxx).LastWriteTime = Get-Date` 摸一下再打。
+- `lint_lua.py` 原来把 `for … do` 的 `do` 也算一层块，任何带 for 循环的 Lua 都误报
+  "for 没有配对的 end"；已改成 `for/while` 头部的 `do` 不再计数，同时让它认得表情虚拟 id
+  （`9000000+id*10+slot` 会先还原成真实 id 再查人物表）。
+- 别用 `lupa` 之外的"纯 Python 猜测"校验 Lua：`lupa 2.8` 在环境里，
+  `jyx2mod.check_lua_syntax()` 就是真编译一遍（168 个脚本 0 报错才算过）。
+
+
+
+## 十三、2026-10-29：战斗数值重锚定 / NPC 统一朝心 / 桃花岛对话重写
+
+本轮解决三个"玩起来不对劲"的问题，全部是**纯 Lua + 热更新**，没有改 C#，也不用重新编译游戏。
+
+### 1. 战斗数值：等级涨了，血/真气却是 1 级值
+
+**根因（两层，都要知道）**
+
+- `RoleInstance.LevelUp()`（`Scripts/GameSave/RoleInstance.cs:272`）每升一级只给
+  `MaxHp += (HpInc + Random(0,3)) * 3`，即 **9~27 点血**；`MaxMp += (9-a)*4`，12~32 点。
+- 但剧本里大量用的是 `AddExp(0, N)`（`Jyx2LuaBridge.cs:1108` → `AddAttr(role,"Exp",…)`），
+  **只加经验，不调 LevelUp**；真正升级只发生在 `BattleManager.cs:320` 战后的
+  `while (role.CanLevelUp()) role.LevelUp();`。
+- 于是任何"绕开那两处"改写 `Level` 的路径（`AddLevelreturnUper`、或读档时字段被覆盖）
+  都会留下 **Level 很高、MaxHp 停在 1 级值** 的组合。
+
+**修法**：`Lua/balance.lua` 的 `FixStats(r)` 给血量/真气一个**只补不降的地板**：
+
+```
+floorHp = 40 + (Level-1) * 6          -- 每级 6 点，是 LevelUp 真实增量(9~27)的保守下限
+floorMp = 20 + (Level-1) * 3
+```
+
+低于地板才补，且 `MaxHp` 与 `Hp` **同步加同一个增量**，所以在战斗中途调用也等价于
+"凭空多出来的上限直接回满"，不会出现"凭空回血"。
+
+> 为什么斜率取得这么小：第一版用 `(HpInc+1)*3` 当斜率，结果杨过（Lv13 配表 300 血）没事，
+> 但真气从配表 110 被抬到 116 —— 地板去改一个本来就合理的数值，属于越权。
+> 现在斜率只够抓"完全停在 1 级"的情况，配表数值一律不动。
+
+挂载点：`RoleInstance.InitData`（读档/建角色后）、`RoleInstance.LevelUp`（升级后），
+外加伤害函数里对交战双方的顺手校正。
+
+### 2. 战斗数值：郭芙一掌秒人 / 一场仗磨十几回合
+
+**根因**：引擎公式（`Assets/LuaScripts/Jyx2Battle/DamageCaculator.lua:171-220`，属于 base 资产，
+不在 MOD 里）是
+
+```
+v = (总攻击 - 总防御*3) * 2/3 + RND(20) - RND(20)
+```
+
+**防御被乘了 3 倍**。配表里杨过 Attack74/Defence60、郭芙 Attack77/Defence60：
+
+- 双方打对方都只有 ~11 点伤害 → 230 血要打 **21 回合**（拖沓的来源）；
+- 一旦某方防御稍低或对方有个高攻击技能，`v` 直接翻正成几十上百 → **秒杀**。
+
+曲线在中间是断的，没有过渡段。
+
+**修法**：不改引擎文件，在 MOD 里包一层 `Jyx2.Battle.DamageCaculator.GetSkillResult`
+（`BattleInit.lua:22` 把它挂在 **全局表** `Jyx2.Battle` 上，所以直接赋值就能覆盖）：
+
+```lua
+local orig = dc.GetSkillResult
+dc.GetSkillResult = function(caster, target, skill, bv)
+    local rst = orig(caster, target, skill, bv)      -- 原公式照跑
+    ... 只对 magic.DamageType == 0（普通伤害）重锚定 ...
+end
+```
+
+重锚定方式：把伤害拉到**目标最大生命的某个比例**，比例由双方 `Power()` 之比决定。
+
+```
+Power(r) = Attack + Defence*0.9 + Level*5 + MaxHp*0.08
+ratio    = 0.16 * k^1.15        clamp 到 [0.10, 0.40]
+ratio   *= 1 + 0.5*(1 - 当前血/最大血)     -- 残血加速，防止磨血
+最终     = hp2 * ratio * (1 ± 25%)         -- 原公式结果只做倾向修正
+```
+
+原公式结果没被丢掉，而是降级成 **±25% 的倾向修正**，所以武功等级、距离、体力、
+武学常识仍然影响手感 —— 只是不再决定数量级。
+
+`DamageType != 0` 的（吸内 / 用毒 / 解毒 / 治疗 / 暗器）**一律保持原样**。
+
+**实测（`tools/shendiao/balance_selftest.py`，配表真值 + 原公式产出原始伤害）**
+
+| 对战 | 胜者 | 回合数 |
+|---|---|---|
+| 杨过 vs 野狼 | 杨过 | 3 |
+| 杨过 vs 武敦儒 | 杨过 | 5 |
+| 杨过 vs 郭芙 | 杨过 | **7** |
+| 杨过 vs 欧阳锋 | 欧阳锋 | 4 |
+
+- 普通战 3~7 回合，落在"不拖沓"的区间；
+- 郭芙不再秒人，但也不是软柿子（7 回合才拿下）—— 符合"同级对手"的定位；
+- 欧阳锋（Lv31 / 885 血）4 回合打崩 13 级的杨过，属于剧情压制，玩家该跑而不是该打。
+
+调参入口全在 `Lua/balance.lua` 顶部：`BASE_RATIO`(节奏)、`RATIO_MIN/MAX`(上下限)、
+`LOW_HP_BOOST`(收尾加速)、`TILT/TILT_CAP`(原公式影响力)、`HP_PER_LEVEL`(血量地板斜率)。
+改完跑 `python tools/shendiao/balance_selftest.py` 就能看到新曲线，不用进游戏。
+
+#### 踩的坑
+
+- `Jyx2.Battle` 可能比 MOD 的 `PreloadedLua` 更晚建好 → `TryPatchDamage()` 必须允许多次重试，
+  现在在**模块加载时**试一次、**`RoleInstance.InitData`** 里再试一次（InitData 必发生在引擎
+  Lua 初始化之后）。
+- `Jyx2.Battle` 是**全局表中的 Lua 模块**（`BattleInit.lua` 里 `battle.DamageCaculator = prequire(...)`），
+  不是 C# 方法，所以**不需要 `util.hotfix_ex`**，直接给字段赋值即可 —— 别去 hotfix 一个 C# 类型。
+- 覆盖时用 `rawset(dc, "__shendiao_balance_patched", true)` 做幂等标记；
+  重复包装会让伤害被连续重锚定两次（结果仍收敛，但会白跑一遍原公式）。
+
+### 3. NPC 朝向：郭靖对着墙、欧阳锋盯着郭芙
+
+**根因**：场景里 NPC 的旋转是编辑器手摆的，作者没摆准。实测 `62_pomiao.unity`：
+郭靖在 `(0.8, 5.0, -6.0)`、黄蓉在 `(2.2, 5.0, -7.2)`，**两人都被摆成 yaw=90°**（朝 +X），
+而庙内中心在 +Z 方向 —— 等于贴着东墙说话。
+
+**修法**：`Lua/npc_face.lua`，热更新 `CS.LevelMaster.Start`（每个场景进入时都会跑一次）：
+
+```lua
+util.hotfix_ex(CS.LevelMaster, "Start", function(self)
+    self:Start()                 -- 原逻辑
+    pcall(fixSceneNpcs, self)    -- 之后统一转身
+end)
+```
+
+`fixSceneNpcs` 的规则：
+
+1. 在 `self.transform.root` 下递归找名为 `NPC` 的节点，取它的所有子对象；
+2. 算出这些 NPC 水平坐标的**质心**；
+3. 每个 NPC `Quaternion.LookRotation(质心 - 自己)`；
+4. 自己就在质心 0.5 m 内 → 退化为朝玩家（`Player` 节点），再没有就朝 +Z。
+
+"统一朝质心"等价于"大家围成一圈互相看着"，既不会面壁，也不会出现
+"欧阳锋盯着郭芙"那种奇怪的凝视关系。
+
+- `FACE_STYLE = "player"` 可切成"直接朝玩家"。
+- `YAW_FIX["NPC名"] = 度数` 用于模型正面不是 +Z 的情况。
+  已扫描 `BuildSource/ModelCharacters` 全部 prefab 的根节点 yaw，**只有 9 个非零**：
+  `Suanmingxiansheng / Nanxian / 05_Nanxian / Chahuzhanggui / Zahuoshang / Zhanggui = 90`，
+  `Huozhizhu = 180`，`Weixiaobao = 84.9`，`Xiexun = 81.3`；郭靖/黄蓉/欧阳锋/郭芙等全是 0。
+- 不改 `.unity` 的理由：MOD 有 100+ 个场景（含大地图分块），手摆不可维护；
+  prefab 实例的旋转藏在 `m_Modifications` 里，抽查改容易写坏文件。
+
+### 4. 桃花岛对话：郭靖莫名其妙让我去重阳宫
+
+`Lua/466.lua` 末段原本是"郭伯伯，为什么？"→"……你会蛤蟆功。"→ 直接宣布去重阳宫，
+因果全靠玩家脑补，而且**黄蓉只在旁边说了句"孩子不懂事"**，读起来像郭靖突然赶人。
+
+重写要点（仍在 `466.lua`，flag 链不变）：
+
+- 先点明"昨日后院你打了敦儒、一掌撞裂石桌"，把**证据**摆出来，而不是抽象地说"你会蛤蟆功"；
+- 郭靖明确表态"我信你"，是**柯公公不信** —— 赶人的压力来源落到第三方身上，
+  郭靖的无奈和黄蓉的算计才立得住；
+- 黄蓉的台词改成"你去那里是学正道武功，不是被赶出去"，紧接着杨过内心吐槽
+  "她先让我背《论语》，又说我学不得武功" —— 呼应前一段，让读者看出她在借坡下驴；
+- 结尾给出**行动指引**：`船还在码头——你上岸的地方`（原来是一句重复的"终南山，重阳宫"，
+  玩家不知道下一步去哪；早期版本写的是"海边"，而"海边"是 `923` 欧阳锋那片礁石，
+  真正的离场点 `Leave/Entrance` 在码头 `(47.11, 15)`，即上岸点 `(44.9, 14.9)` 旁 2.2m）。
+- 情绪用上了表情槽位：郭靖 `EXPR.sad`（9000108 已生成）、杨过 `EXPR.think/sad/angry`。
+
+### 5. 本轮新增 / 改动
+
+| 文件 | 说明 |
+|---|---|
+| `Lua/balance.lua` | 新增，血量地板 + 伤害重锚定 + 生命周期钩子 |
+| `Lua/npc_face.lua` | 新增，进入场景后 NPC 统一朝质心 |
+| `Lua/466.lua` | 重写桃花岛末段对话 |
+| `ModSetting.asset` | `PreloadedLua` 追加 `npc_face`、`balance` |
+| `tools/shendiao/balance_selftest.py` | 新增，lupa 模拟对战量回合数 + FixStats 回归 |
+
+验证：`lint_lua.py` 168 脚本 0 问题 / `check_story.py` 168 脚本 0 错 0 提醒 /
+`jyx2mod.py check shendiao` 一切正常（Preloaded 识别 4 个）/ `balance_selftest.py` 全绿。
+
+---
+
+## 十四、2026-10-29 第二轮：剧情/场景的语义层审计（5 处修复）
+
+静态检查（lint / check_story / flag 图）第一轮就全绿，但"绿"只代表**指针没断**，
+不代表**话说得对**。这一轮把审计从"结构"下沉到"语义"，用两个新工具把
+168 个脚本 × 37 个场景翻了一遍。
+
+### 1. 新工具（`tools/shendiao/`）
+
+| 工具 | 作用 |
+|---|---|
+| `audit_flags.py` | 建全 MOD 的 flag 图，报三类：**只读不写**（剧情永不触发／永久卡关）、只写不读（死 flag）、同名多处写不同值 |
+| `find_event.py` | 事件 ↔ 场景 ↔ Lua 双向比对。`--all` 模式列出「写了脚本但没场景绑定」和「场景绑了但没脚本」 |
+
+跑出来：**只读不写 0 个**（没有任何分支是死的）、只写不读 1 个（`全篇完成`，
+结局标记，正常）；事件 162 个绑定／164 个脚本，孤立绑定 0 个。
+
+> 踩坑：`find_event.py` 初版每个 GameEvent 只取第一个 id，把 `913 / 914 / -1`
+> 这种「交互 + 用物品」双挂的物体误报成"914 无绑定"。必须三个字段逐个登记。
+
+### 2. 修掉的 5 处
+
+| # | 位置 | 问题 | 修法 |
+|---|---|---|---|
+| 1 | `922.lua` 武氏兄弟 | 输的分支说完"我摔在地上"，紧接着 `if` 外面又来一句"寡不敌众，我终究还是摔在地上"——同一件事连说两遍；赢的分支说"拳头砸在我脸上"再摔一次，也矛盾 | 赢：推开武敦儒 → 郭芙喊"一起上" → "推得开一个，推不开两个"；输：一记拳 + 郭芙嘲讽；共用句改成"被按在地上" |
+| 2 | `401.lua` 公孙止 | 走"战败"分支后，公孙止还完好地站着，裘千尺却哈哈大笑"你也有今日！" | 战败分支补**枣核钉救场**：三枚枣核钉在他脚前 → "……裘千尺！" → "我不出手，我只数你的刀" → 转身出洞。两分支都能到"击退公孙止" |
+| 3 | `466.lua` 桃花岛末段 | 郭靖说"我亲自送你上山"，但游戏里他根本不会出现；"船在**海边**"指的是 `923` 欧阳锋那片礁石，真正离场点 `Leave/Entrance` 在码头 `(47.11, 15)`，就在上岸点 `(44.9, 14.9)` 旁 2.2m | 改为"到了重阳宫，凡事听师父的""受了委屈，也别自己扛着"；指引改成"船还停在**码头**——你上岸的地方" |
+| 4 | `4.lua` 旧庙祝 | 与 `559.lua` 是同一段剧情的旧版，却把玩家指向"去终南山重阳宫"，等于跳过郭靖相遇、桃花岛、古墓、绝情谷全部章节 | 整段改写成与 559 一致（引导去**佛堂**找白袍客）。该脚本绑在废弃场景 `00_mochuanlinju`（不在 MapConfig），玩家本来进不去，属于拆掉未来的坑 |
+| 5 | `1001.lua` 郭靖相遇 | 无论有没有翻过木箱，都会说"（我摸了摸怀里的铁枪残片）"——没拿遗物的玩家怀里空空如也 | 按 `父亲遗物` 分流：没拿 → 郭靖指点"供桌上那口旧木箱，你爹的东西该由你收着"；拿了 → 保留原内心独白；结尾出门描写同样分流 |
+
+### 3. 确认无需动的地方
+
+- **地图 id 100–164 共 65 个"未开放"地点全部指向 `62_pomiao`（破庙）**：
+  这是原版 jynew 的做法（未开放点复用破庙），名称自带"〔未开放〕"后缀，
+  且节点坐标全堆在 `(0,0,0)`。不是本 MOD 引入的问题。
+- **12 处 DANGLING／2 处"剧情点名但场上没有模型"全部落在 3 个废弃场景**
+  （`00_mochuanlinju`、`01_moqiaoshanzhuang`、`02_wanzhushuyuan`），
+  **14 个正式场景 0 问题**（桃花岛 466 分别挂在郭靖 0.1m 和黄蓉 0.1m 上、
+  922 挂郭芙 1.6m、923 挂欧阳锋 1.6m，都对得很准）。
+- `850.lua`、`851.lua`（"香烛木箱""半卷经文"）没有任何场景绑定，是无害的一句话装饰。
+
+### 4. 验证与分发
+
+- `lint_lua.py` 168 脚本 0 问题 / `check_story.py` 168 脚本 0 错 0 提醒 /
+  `audit_flags.py` 65 flag 0 只读不写 / `find_event.py --all` 孤立 0
+- `jyx2mod.py unity shendiao --with-base --force` → `install`：`shendiao_maps` 142 MB、
+  `shendiao_mod` 42 MB，manifest 里确认 `4 / 401 / 466 / 914 / 922 / 1001.lua` 六个都在包内
+- `jyx2mod.py check shendiao` 一切正常（Preloaded 4 个）
+
+> **坑（重要）**：只跑 `unity shendiao`（不带 `--with-base`）会带 `-skipBase 1`，
+> 共享资源被内联进 **maps** 包，`shendiao_maps` 会从 142 MB 涨到 380 MB。
+> 改完 Lua 重新分发时务必 `--with-base --force` 全量打一次；
+> `--force` 也必须有 —— 脚本按 mtime 判"没有检测到改动"会直接跳过构建。
+
+### 5. 仍然只能进游戏验的
+
+- 922 打赢／打输两种台词是否都通顺（平衡改动后玩家大概率会赢）
+- 桃花岛结尾"码头"指引能否让玩家找到 `Leave` 点
+- 序章不翻木箱直接找郭靖，是否还会出现"怀里空空却摸残片"
+
+---
+
+# 2026-10-29 晚：章节内容按原著丰满（李莫愁线打通）
+
+## 一、动机与现状
+
+用户反馈：「章节内容再丰满些，比如第一章有李莫愁的」。
+
+摸底（新工具 `tools/shendiao/map_events.py`）显示 14 个正式场景共 **107 个事件**，
+其中古墓只有 5 个（217/219/442/902/3006），而原著古墓占了整整六回
+（求师终南、全真门下、活死人墓、玉女心经、重阳遗篇、白衣少女）。
+
+更要紧的是：**李莫愁这条线断成了两截**——
+455 里鹿清笃说「前些时候有个女魔头在山下出没」，此后直到古墓 217 才再见她一面，
+说完「看在我师妹面上饶你一命」就退场，**伏笔从未兑现**；
+之后的绝情谷、陆无双、程英全部与她无关地各自演完。
+原著里她从第二回一路追杀到第三十二回，是前半部唯一的贯穿性反派。
+
+## 二、约束：不能加事件，只能把脚本写长
+
+`patch_scene_events.py` 只能改**已有的** GameEvent（layer / trigger / target / 位置 / EventId），
+`add_scene_npc.py` 只能往场景里塞 prefab 实例（模型），**两者都不能新建 GameEvent**。
+例如 `18_gumu.unity` 一共只有 5 个挂了 GameEvent 的物体，**没有空槽位**。
+
+结论：扩容只能靠**把单个脚本写长** —— Jyx2 的 `Talk` 没有条数上限，
+一个事件足以承载一回书的内容。本轮所有改动都遵守这条，**未改动任何 .unity**。
+
+## 三、本轮改动（8 个脚本）
+
+### 1. `217.lua` 重写：李莫愁闯墓（1.6kb → 5.1kb）
+
+原来只有「墓门对峙 → 打一场 → 她走」三句话。现按原著第五回末 + 第九回重写：
+
+| 原著节点 | 落到脚本 |
+| --- | --- |
+| 携弟子（洪凌波）闯墓 | 「身后跟着两个杏黄短打的年轻女子，垂着手，不敢抬头」 |
+| 索要《玉女心经》 | 师妹／师伯的辈分、二十年旧怨 |
+| 师门心结 | 李莫愁把欧阳锋引进墓，师父因此重伤而死；小龙女一直怪她 |
+| 交手 | `TryBattle(203)` 胜负双分支 |
+| 小龙女放断龙石 | 「师父把断龙石的机关交给你，是要我同归于尽？」 |
+| 从水下秘道逃生 | 「墓后有水道。师父留的。」 |
+| 师父的遗言 | 「她若回来，别杀她。」——为她后来屡次作恶却无人索命留依据 |
+
+**顺手改掉一个语义硬伤**：旧版杨过上来就说「你杀了孙婆婆」，
+但 902 明写孙婆婆是**全真道士一掌打死**（原著为郝大通误伤），李莫愁是被冤枉的。
+现改为杨过说「孙婆婆死了」，李莫愁答「全真教打死的。这笔账别安到我头上」。
+
+新增 flag `断龙石`（217 写、219 读），`audit_flags.py` 复核 66 flags / 0 只读不写。
+
+### 2. `219.lua` 扩写：玉女心经
+
+补进原著第六回的内容：石棺上刻的是林朝英的《玉女心经》，**前半篇写情、后半篇写剑**；
+「心经须得两人同练，一阴一阳」——这是全书师徒情的起点。
+另加 `断龙石` 分支：若已放下断龙石，开篇先说「这墓里的光，从那一夜起就是全部的光了」。
+
+### 3. `906.lua` 扩写：陆无双交代李莫愁
+
+原先她只出现一次，教完「分花拂柳手」就结束，**一句没提自己的师父是李莫愁**。
+现补：爹娘是李莫愁杀的、被抱走养如犬马、左腿是逃跑时被打断的、
+偷了《五毒秘传》出逃（她答「烧了」答得太快，留白）。
+顺手修正原著关系错误：程英是她的**表姐**，原脚本写成「师姐」。
+
+### 4. `455.lua` 补伏笔：女魔头有名有姓
+
+鹿清笃原话只有「有个女魔头在山下出没」。现补郭靖追问「可是姓李？」→
+「道号『赤练仙子』，一手拂尘，一手毒针。山下的猎户说她走过的地方，草都是黑的」，
+让玩家**进古墓之前**就记住这个名字。
+
+### 5. `399.lua` 补出场：绝情谷花丛中被渔网困住
+
+原著李莫愁是被周伯通引到绝情谷、裘千尺命弟子用渔网阵困在情花丛。
+入谷时补一段：她被细麻渔网罩在花丛里，「一根一根地扯网绳，扯断一根，又缠上两根」，
+求杨过解网、承诺记人情，杨过没过去 —— 于是有了第三章结尾那句「那张网，你终究没替我解」。
+
+### 6. `401.lua` 补结局：问世间情是何物
+
+原第三章以击退公孙止收尾。现按原著第三十二回，在她被困之后补**火中葬身**：
+情花丛起火，她在火里唱元好问《摸鱼儿·雁丘词》——
+「问世间，情是何物，直教生死相许……渺万里层云，千山暮雪，只影向谁去？」
+死前认出杨过，笑了一下：「也好。」
+
+### 7. `428.lua` 补一笔：欧阳锋临死记起自己是谁
+
+洪七公与欧阳锋相拥而逝本来已经写得克制到位，只缺原著最要命的一笔，补上：
+「我……我是谁？」—「你是欧阳锋。」—「欧阳锋。」「我是欧阳锋。」
+（原著里他疯癫半生，死前才想起自己。）
+
+### 8. `836.lua` 补全剑冢四剑
+
+原来只写了三柄剑，且删掉了独孤求败的刻字。现补成原著**四柄**，每柄都带刻石原文：
+
+| 剑 | 刻石 |
+| --- | --- |
+| 青钢利剑 | 凌厉刚猛，无坚不摧，弱冠前以之与河朔群雄争锋 |
+| 紫薇软剑 | 误伤义士，不祥，弃之深谷 |
+| 玄铁重剑 | 重剑无锋，大巧不工，四十岁前恃之横行天下 |
+| 木剑（已朽） | 四十岁后，不滞于物，草木竹石均可为剑……渐进于无剑胜有剑之境 |
+
+## 四、新工具 `tools/shendiao/map_events.py`
+
+把「正式场景 → 事件 id → 宿主物体 → 坐标 → 脚本首句」打成一张表，用来一眼看出哪一章太薄。
+
+```powershell
+$env:PYTHONIOENCODING='utf-8'
+Start-Process python -ArgumentList 'tools/shendiao/map_events.py' `
+  -RedirectStandardOutput Logs/_me.txt -RedirectStandardError Logs/_me.err -NoNewWindow -Wait
+```
+
+只统计 `MapConfig.lua` 里 id<100 的地图（废弃场景不进表）。
+本轮产出的分布：破庙 7 / 重阳宫 10 / 古墓 5 / 神雕洞 7 / 绝情谷 5 / 绝情谷底 2 /
+百花谷 3 / 华山 10 / 思过崖 3 / 铁掌山 15 / 黑龙潭 5 / 一灯居 2 / 程英居 2 / 桃花岛 5。
+
+## 五、验证与分发
+
+```
+lint_lua.py     168 脚本 0 问题 0 条
+check_story.py  168 脚本 0 错误 0 提醒
+audit_flags.py  66 flags / 0 只读不写 / 1 只写不读（全篇完成）
+unity shendiao --with-base --force  → shendiao_maps 135.8 MB + shendiao_mod 40.4 MB
+install shendiao --src Export/shendiao  → [ok]
+check shendiao  → 一切正常（maps 45 / mod 179 资源）
+```
+
+Unity 日志确认 8 个脚本均已入包（217 从 1.6kb 涨到 5.1kb）。
+
+## 六、下一步候选（未做）
+
+- 铁掌山（15 个事件，第四章）与百花谷 / 黑龙潭（瑛姑、一灯线）尚未按原著扩写
+- **洪凌波在 `人物.xlsx` 里没有条目**（73 人里无此人），目前只能以旁白存在；
+  要给她台词，得先加人物行 + 头像资源，再 `configs shendiao` 重新生成
+- 郭芙断臂（原著第二十六回）目前只在 389 一句「右臂断了」带过，程英居 402 有善后，缺正面描写
+- `00_mochuanlinju` 等 3 个废弃场景仍在工程里，不进包，可择日删除
+
+---
+
+# 2026-10-29 深夜：第一回《风月无情》按原著重做（开场不再是杨过）
+
+## 一、动机
+
+用户原话：「开头不是杨过的剧情，你做的太简单了，重做吧，先做第一回」。
+
+旧版破庙序章是**杨过第一人称独白 + 庙祝一句指路 + 郭靖认亲**，等于把原著
+第一回《风月无情》整回跳过了——李莫愁、陆家庄灭门、九口血手印、武三通刨坟、
+程英陆无双、柯镇恶、破窑夜战，一样都没有。本轮把这一回补成一条完整章节。
+
+## 二、约束与破题：旁白不需要头像
+
+约束没变：`62_pomiao` 只有 7 个 GameEvent（557 进庙 / 558 木箱 / 559 庙祝 /
+563 墓碑 / 564 用物品 / 1001 郭靖 / 1002 黄蓉），**不能新增事件**，场上也
+只有老庙祝、郭靖、黄蓉三个模型。
+
+破题靠 `BuildSource/Lua/main.lua`：
+
+```lua
+function Info(msg)
+    Talk(0, msg, "", 2)   -- type=2：不显示头像与姓名，只出居中文字
+end
+```
+
+`ChatUIPanel.Show()` 里 `type == 2 || type == 3` 时 `HeadAvataPre` 与 `Name`
+都被隐藏（`ChatUIPanel.cs:147-152`）。所以第三人称楔子可以直接写：
+
+```lua
+Talk(0, "三天之后，城西陆家庄的白墙上，印了九个血手印。", "", 2)
+```
+
+注意 `expr.lua` 包了一层 `Talk`，第三参不是表情名时会**原样转发四参**，
+所以这个用法不会破坏表情系统（它的注释里已写明这一点）。
+
+## 三、事件 → 剧情映射（全部挂在原有事件上）
+
+| 事件 | 旧内容 | 新内容 |
+| --- | --- | --- |
+| 557 进庙 | 杨过独白"爹死在铁枪庙" | **楔子（旁白）**：南湖采莲（程英/陆无双登场）→ 柳下李莫愁掌心血、青袍老者 → 陆家庄九个血手印逐个对命 → 一夜灭门、掘坟盗尸 → 疯汉刨坟骂"何沅君"、拗断槐树、柯镇恶赶到 → 镜头落回铁枪庙，杨过才开口 |
+| 559 庙祝 | "你去重阳宫打听" | **三段说书**：①陆展元/何沅君/十年之约/九口血手印/武三通义女 ②见他手黑 → 冰魄银针 + 红花绿叶锦帕 ③指路佛堂 |
+| 563 墓碑 | "蔡邕之墓"（无关） | **陆展元夫妇合葬墓**：坟被刨、空棺、棺盖铁器痕、拗断槐树、泥里十指印；第二次再来时**李莫愁亲至坟前**，点破银针有毒 |
+| 564 用物品 | "挖不动" | 拨开棺底 → 断成两截的玉镯（内壁刻"沅君"）+ 发霉的馒头，坐实"掘墓人不要陪葬，只要人" |
+| 1001 郭靖 | 认亲 | **黄蓉解冰魄银针毒**（九花玉露丸）+ 追问陆家庄火 → 认亲 → 邀去桃花岛（保留是/否选择） |
+| 1002 黄蓉 | 上岛前闲聊 | **夜戏收束**：破窑里武三通与程英陆无双 → 李莫愁歌声 → 拂尘打倒武三通、柯镇恶赶到 → 杨过从背后抱住她 → 石子打落银针 → 掳走陆无双、青袍客（黄药师）救走程英 → 郭靖决定带他回岛 |
+
+另外 558 木箱补了"烧剩的焦纸 + 缠红绳的铁钉"，让`父亲遗物`有实物感。
+
+## 四、新增 flag（`audit_flags.py` 已核）
+
+```
+第一回_楔子    557 写 / 557 读
+第一回_旧事    559 写 / 559 读
+第一回_坟地    563 写 / 559、563 读
+第一回_李莫愁  563 写 / 563 读
+第一回_中毒    563 写 / 559、563、1001 读
+第一回_求医    559 写 / 559 读
+第一回_解毒    1001 写 / 563、1001、1002 读   ← "见过郭靖"总开关，没中毒也置位
+第一回_玉镯    564 写 / 564、1002 读
+第一回_完      1002 写 / 559 读
+第一回_应允 / 第一回_拒辞 / 第一回_见过郭靖  1001 内部用
+```
+
+`序章完成` 的写入点从 1001 **挪到了 1002**：夜里那场戏才是本回收束，
+否则玩家看完认亲就能直接去桃花岛，高潮会漏掉。466/922/923 的判定不受影响。
+
+## 五、已知限制
+
+- 武三通、洪凌波、陆立鼎夫妇在 `人物.xlsx` 里没有条目 → 只能出现在旁白里
+  （用「」引出他们的原话），不能以头像对话形式出场
+- 场上没有李莫愁模型，夜戏是"文字 + 头像"演出，不是立绘走位
+- 原著第一回里"九个手印逐个对命"的长解释放在楔子；庙祝那段是复述 + 补充，
+  两处都保留，重复感靠错开视角（旁白述事 / 庙祝讲人情）
+
+## 六、验证
+
+```
+lint_lua.py     168 脚本 0 问题 0 条
+check_story.py  168 脚本 0 错误 0 提醒
+audit_flags.py  78 flags / 0 只读不写 / 1 只写不读（全篇完成，既有）
+sim_lua.py --preset ch1   4 条线全部断言通过
+```
+
+`sim_lua.py` 是本轮新增的工具：用 lupa 真跑 Lua，把 `Talk / GetFlagInt /
+SetFlagInt / AddItem / ModifyEvent / ShowYesOrNoSelectPanel` 打成桩，按顺序
+执行脚本并把对白流水 + flag 快照写到 `Logs/_sim_out.txt`。`--preset ch1`
+内置四条回归线（主线 / 跳过坟地 / 先挖坟 / 拒绝上岛），任何一条跑不通就抛错。
+
+```powershell
+python tools/shendiao/sim_lua.py --preset ch1
+python tools/shendiao/sim_lua.py 557 559 563 559 1001 1002   # 自由组合
+```
+
+打包（Lua 在 `shendiao_mod` 这个 AB 里，改脚本必须重新导出 + 安装）：
+
+```powershell
+python tools/moddev/jyx2mod.py unity shendiao --with-base --force
+python tools/moddev/jyx2mod.py install shendiao --src Export/shendiao
+# → shendiao_maps 142,428,161 B / shendiao_mod 42,362,637 B（比上一轮 +41 KB）
+# manifest 里确认 557/558/559/563/564/1001/1002.lua 全部在包内
+```
+
+`lint_lua.py` 只查括号与字符串配平、`check_story.py` 只查表引用，**都发现不了
+"flag 分支写反 / goto 跳进死路 / 某条线走不到"**，这次靠它抓出的问题：
+`1002` 原来只认 `第一回_解毒 == 1`，不中毒的玩家会卡死在「先去找靖哥哥」。
+
+进游戏要验的：557 楔子是否自动播一次并关闭；563 第二次是否切到李莫愁；
+中毒后 1001 是否先解毒再认亲；1002 是否只在见过郭靖后可触发；
+`序章完成` 之后 559/1002 是否走收尾分支。
+
+
+
+---
+
+# 第一回改版 v2（2026-10）——三人坟前演出 + 必败战 + 冰魄银针 + 场景显隐
+
+目标：把"旁白讲一遍"改成"人站在那儿演一遍"。楔子那段 72 句旁白全部拆掉，
+核心戏搬到后山坟前，由 **李莫愁 / 程英 / 陆无双** 三个模型自己演；每场戏
+压在 15 句以内；坟前打一场必败的仗，打完中毒、拿到暗器「冰魄银针」。
+
+## 一、这次用到的引擎能力（都已在 Lua 侧验证存在）
+
+| Lua 调用 | C# 位置 | 语义 |
+| --- | --- | --- |
+| `jyx2_ReplaceSceneObject("", "NPC/名字", "0"/"1")` | `LevelMasterBooster.ReplaceSceneObject` → `SetSceneInfo` → `RefreshSceneObjects` | 隐藏/显示 `Level/<路径>`，**写进存档**（`GameRuntimeData.GetSceneInfo`），重进地图仍然生效。对象不存在会 `Debug.LogError`，所以只对确定存在的 NPC 调 |
+| `jyx2_CameraFollow("Level/NPC/李莫愁")` | `Jyx2LuaBridge.cs:413` → 改 Cinemachine vcam 的 `Follow` | 镜头锁到某个 NPC；`GameObject.Find` **要求对象是激活的**，所以先 `"1"` 再 follow |
+| `jyx2_CameraFollowPlayer()` | 同上，等价 `Follow("Level/Player")` | 镜头收回主角 |
+| `TryBattle(203)` | `main.lua` 里 `util.async_to_sync(luaBridge.TryBattle)` | 同步返回 true/false（胜/负）。**输了不会 GameOver**：`BattleManager.OnBattleEnd` 的 Lose/Surrender 分支只弹「战斗失败！」然后 `EndBattle()` 回地图，脚本继续跑 → 必败战斗可以放心写 |
+| `luaBridge.RestTeam()` | `Jyx2LuaBridge.cs:1483` | 全队 `Recover()`（满血、清 Hurt/Poison）。`Rest()` 有 `Hurt<33` 门槛，战败后不生效，必须用 `RestTeam` |
+| `DarkScene()` / `LightScene()` | `Jyx2LuaBridge.cs:305/325` | `BlackCover` 淡入淡出 1 秒，含回调 → 大跨度转场用 |
+| `AddItem(71, 3)` | — | 物品 71 = 冰魄银针，`物品.xlsx` 里 **类型 4 = 暗器**（`Jyx2ItemType.Anqi`），战斗里走"暗器"页可投掷；-50 HP |
+
+没有 CG/插图 API：`EndAmination` 是空实现，`ChangeScencePic` 只换 2D 场景贴图，
+`UI` 里没有看图面板。所以"过场图"这一版先用 **转暗→旁白→转亮** 的过场卡代替，
+真要上图得往场景里塞一个 `Canvas + Image` 的 prefab（见"未做"一节）。
+
+## 二、场景布景（`62_pomiao.unity` → `Level/NPC`）
+
+用 `tools/shendiao/add_prefab.py`（读 prefab 根 GO/根 Transform 的 fileID，手写
+PrefabInstance + 两块 stripped，不依赖模板场景）加的：
+
+```
+李莫愁  (-3.8, 5, -12.2)  rotY 150   ← BattleNpc/Miejue.prefab
+程英    (-5.0, 5, -12.9)  rotY 100   ← BattleNpc/Chengying.prefab
+陆无双  (-2.7, 5, -13.5)  rotY 190   ← BattleNpc/Azi.prefab（阿紫的模型）
+```
+
+坐标依据：`Tomb` (1.21, 4.95, -13.41)、`mubei` (-1.86, 6.03, -13.18)，坟前地面
+高度就是 y≈5.0；563 的触发盒在 (-1.9, 6.9, -13.2)，玩家从庙里（+z）走过来正好
+看见三个人背对镜头站在坟前。
+
+驱动脚本（中文名字经 PowerShell 传 argv 会变乱码，所以在进程内拼 argv）：
+`tools/shendiao/add_grave_npcs.py`（默认 dry-run，`--apply` 才写盘；幂等性靠
+`add_prefab.py` 每次重新读场景挑空段 fileID，重复跑会再摆一份，别手滑）。
+
+**注意**：三个 prefab 在 `BuildSource/ModelCharacters/` 里属于 base_assets，
+导出时要带 base：
+
+```powershell
+python tools/moddev/jyx2mod.py unity shendiao --with-base --force
+python tools/moddev/jyx2mod.py install shendiao --src Export/shendiao
+```
+
+## 三、新的演出顺序（每场 ≤15 句，`sim_lua.py` 里有断言）
+
+| 事件 | 场景 | 内容 | 句数 |
+| --- | --- | --- | --- |
+| 557 进庙 | 庙门 | 藏起坟前三人 + 郭靖黄蓉；杨过四句独白，指到庙祝 | 4 |
+| 559① 庙祝 | 大殿 | 九个血手印 / 十年之期 / 后山坟被刨「土里的东西别用手碰」→ 收尾时把坟前三人 **放出来** | 15 |
+| 563① 坟前 | 后山 | **三人演出**：李莫愁对碑、问陆无双名字、程英挡在前面、放她们走；镜头 `follow 李莫愁`，末尾 `CameraFollowPlayer` + 收起程英陆无双 | 15 |
+| 563② 坟前 | 后山 | 杨过 ↔ 李莫愁（尸首谁搬的 / 为什么杀七个人）→ `TryBattle(203)` **必败** → `RestTeam()` | 13 |
+| 563③ 坟前 | 后山 | 三点寒星 → 掌心中毒 → `AddItem(71,3)`「冰魄银针」→ 她留话给疯汉、走人、隐藏模型 | 9 |
+| 559② 庙祝 | 大殿 | 看见黑手 → 冰魄银针 → 指路佛堂，**这时才放出郭靖/黄蓉** | 9 |
+| 1001① 佛堂 | 佛堂 | 黄蓉解毒（九花玉露丸 ×2） | 15 |
+| 1001② 佛堂 | 佛堂 | 认亲：姓杨 → 杨康 → 郭靖 | 13 |
+| 1001③ 佛堂 | 佛堂 | 邀去桃花岛（是/否） | 4(+遗物 2) |
+| 1002① 破窑 | 旁白 | 入窑、程英陆无双、疯汉、玉镯、歌声 | 15 |
+| 1002② 破窑 | 旁白 | 李莫愁到、帕子、柯镇恶、抱人梗、银针被打落 | 15 |
+| 1002③ 破窑 | 破窑→船 | 掳走陆无双 / 青袍客救程英 / 郭靖决定带他走 → **转暗·旁白·转亮** 的桃花岛过场 | 12 |
+
+新增 flag：`第一回_夜` / `第一回_夜变`（1002 三段推进）、`第一回_认亲`
+（1001 认亲 → 邀约分段）。`第一回_见过郭靖` 现在被 1001 的认亲开场读一次
+（"毒清了？那好。"），不再是只写不读的死 flag。
+
+## 四、这一版刻意没做的（留给下一轮）
+
+1. **真正的过场图**：需要一个 `Canvas(ScreenSpace-Overlay) + Image` 的 prefab，
+   塞进 `62_pomiao.unity`，CG 存成 sprite；显示仍可用
+   `jyx2_ReplaceSceneObject("", "CG/去桃花岛", "1")`（它只做 SetActive，画布位置无关）。
+   图可以走 `tools/shendiao/gen_heads.py` 那套 gemini 流程生成。
+2. **武三通 / 洪凌波**：`人物.xlsx` 里没有条目（无头像、无模型），目前只有
+   「」旁白原话。要上场就得加人物行 + `Models/xxx.asset` + 头像 PNG + 重新导出。
+3. **柯镇恶**（人物 30，模型可借 `BattleNpc/Xiexun.prefab`）：夜戏里只有声音，
+   因为破窑在地图上没有实体位置，摆哪儿都是"站在空气里"。等破窑场景定下来再加。
+4. 坟前三人站的方位/朝向只能靠坐标推，**进游戏要亲眼看一下**（可能偏高/偏低
+   半格，或背对镜头过度）。
+
+## 五、验证
+
+```
+sim_lua.py --preset ch1    5 条线全过（主线 / 跳过坟地 / 先挖坟 / 拒绝上岛 / 坟前打赢）
+lint_lua.py                168 脚本 0 问题
+check_story.py             168 脚本 0 错误 0 提醒
+check_scene_fileids.py     62_pomiao.unity 0 问题
+check_refs.py              三个新 prefab 未出现在缺失清单里
+jyx2mod.py check shendiao  [ok] 一切正常
+```
+
+`sim_lua.py` 这轮补了 `jyx2_ReplaceSceneObject / jyx2_CameraFollow / TryBattle /
+DarkScene / LightScene / luaBridge.RestTeam` 的桩，并且会统计**每场戏的句数**，
+`--preset ch1` 里直接断言 ≤16，防止以后再加旁白把节奏拖回去。
+剧本流水导出：`python tools/shendiao/sim_lua.py 557 559 563 563 563 559 1001 1001 1001 1002 1002 1002`
+跑完再 `python tools/shendiao/export_story_doc.py` → `docs/第一回-风月无情-剧本.txt`。
+
+
+## 六、第二轮补完（人物 / 一张图 / 显隐坑）
+
+### 1) 「藏起来再放出来」原本是坏的（重要）
+
+`LevelMasterBooster.RefreshSceneObjects` 解析路径用的是
+`GameObject.Find("Level/" + path)`，而 **GameObject.Find 只返回激活中的对象**。
+所以 `jyx2_ReplaceSceneObject("", "NPC/李莫愁", "0")` 之后再调 `"1"` 只会 LogError，
+人永远不回来 —— 上一版 557 藏、559/563 释放那三个人，运行时其实是走不通的。
+
+解法：`Lua/hotfix.lua` 里加了全局函数 `ShowSceneNpc(path, on)`：
+先用 `Transform.Find` 从 `Level` 逐段下钻（**它能找到 inactive 的子节点**）
+`SetActive(true)`，再调 `jyx2_ReplaceSceneObject` 把状态记进存档。
+`557/559/563/1001/1002` 的 34 处调用已全部换成 `ShowSceneNpc`，
+`tools/shendiao/sim_lua.py` 也补了同名桩。
+
+### 2) 武三通 / 洪凌波 真的上场了（柯镇恶也有了实体）
+
+| 人物 | Id | Pic | 模型（`Models/<名字>.asset` 的 m_View） | 站位（`Level/NPC`） |
+| --- | --- | --- | --- | --- |
+| 武三通 | 44 | 44 | `StoryNpc/Zhuangjiahan.prefab`（庄稼汉） | (1.7, 5, -15.3) rotY195 |
+| 洪凌波 | 73 | 73 | `BattleNpc/Chenglingsu.prefab` | (-4.7, 5, -11.3) rotY165 |
+| 柯镇恶 | 30 | 30 | `BattleNpc/Xiexun.prefab` | (-1.5, 5, -16.8) rotY15 |
+
+- `人物.xlsx` 新增第 78/79 行（id 44 / 73），数值照 武敦儒 / 陆无双 复制后调整；
+  `ModelFileKey` = 武三通 / 洪凌波，配 `Models/武三通.asset`、`Models/洪凌波.asset`。
+- 头像用 `gen_heads.py --only 44,73 --model gemini-nano-banana-2.1 --apply` 生成，
+  和原有 65 张同一画风；`meta_for()` 现在同时换 `spriteID`
+  （批量复制 meta 会撞，原来只有 `_tag_assetbundle.py` 全量重跑才修）。
+- 场景实例由 `tools/shendiao/add_ch1_extra.py` 一次写入（默认 dry-run，`--apply` 才落盘）。
+- 台词：武三通接「何沅君呢？何沅君到哪儿去了！」；洪凌波开场
+  「师父，窑口窄，我堵着门。」；柯镇恶在他那句「李莫愁！你杀陆家满门」之前
+  `ShowSceneNpc("NPC/柯镇恶", true)` 才现身。
+
+### 3) 桃花岛那张图（不做 CG 系统，只有一个 Canvas+Image）
+
+- 生成：`tools/shendiao/gen_scene_pic.py --only taohuadao --apply`
+  → `BuildSource/cg/taohuadao.png`（1920×1080 水墨远景，gemini-nano-banana-2.1）。
+- 显示：`Prefabs/CgTaohuadao.prefab`（ScreenSpace-Overlay Canvas
+  `sortingOrder=-10` + 全屏 Image，preserveAspect），由 `add_cg_node.py`
+  摆进 `62_pomiao.unity` 的 `Level/去桃花岛`。
+- 开关：`ShowSceneNpc("去桃花岛", true/false)`；557 先藏，1002 末尾在
+  `DarkScene/LightScene` 之后、两句旁白期间展示。`sortingOrder=-10` 让图排在
+  对话 UI 下面，字不会被盖住。
+
+### 4) 顺手修的工具问题
+
+- `add_prefab.py` 现在认 RectTransform 根的 prefab（原来只匹配 `!u!4`，
+  插入 UI prefab 直接报「找不到根 Transform」）。
+- `add_model.py` 生成的 `.meta` 里 `assetBundleName` 原来是空的（资源不会进包），
+  已补成 `shendiao_mod`。
+- `_tag_assetbundle.py` 支持 `--only 44,73`，不必每次重写全部头像的 spriteID。
+- `near_objects.py`（新）：列出 `<scene>` 里某个平面坐标附近的物体，
+  摆 NPC 之前先看有没有墓碑/石头/触发点。
+- 1002 第三段收尾时把 李莫愁 / 洪凌波 / 陆无双 / 程英 / 武三通 全部收起
+  （人都不该还杵在坟前），柯镇恶留下。
+
+### 5) 还没做 / 需要进游戏确认
+
+1. `jyx2mod.py unity shendiao --with-base --force` + `install` 之后亲眼确认：
+   三人朝向、武三通与柯镇恶有没有穿模、Canvas 图是否在对话框下方。
+2. 破窑在地图上没有独立区域，武三通/洪凌波实际是站在坟地那一小块上
+   （与 1002 的"庙后破窑"共用同一片场地）。
+3. `ModSetting.asset` 的 `StoryIdNameFixes` 后面残留了一段坏 YAML
+   （第 107 行起重复的 `Name:` 与 `- - Id:` 列表），目前不影响加载，有机会再清。
+
+
+### 6) 导包时踩到的坑：.meta 被截断 → 头像不进包
+
+第一次 `jyx2mod.py unity shendiao` 之后，`shendiao_mod.manifest` 里只有 65 个头像，
+少了 `head/44.png`、`head/73.png`，Unity 日志报
+"does not have a valid GUID and its corresponding Asset file will be ignored"。
+
+根因是一条内联 python：`open(p,'w').write(re.sub(..., io.open(p).read()))`
+—— `open('w')` 先把文件截断成 0 字节，再读就是空串，最后只写回 55 字节的尾巴。
+`gen_heads.meta_for` 的注释里记着同一个坑，还是又踩了一次。
+
+- 重建：`python tools/shendiao/fix_head_meta.py 44 73`
+  （删掉坏 meta，从同目录其它头像 meta 复制，换 guid + spriteID）。
+- 防呆：`_tag_assetbundle.py` 遇到不以 `fileFormatVersion:` 开头的 meta 直接跳过并提示。
+- 复查：`Export/shendiao/shendiao_mod.manifest` 里应有 **67** 个
+  `BuildSource/head/*.png`，以及 `CgTaohuadao` / `cg/taohuadao`。
+
+### 7) 本轮导出与安装（已验证）
+
+```
+jyx2mod.py unity shendiao                  [ok] 导出完成（base_assets 无变化，自动 skipBase）
+jyx2mod.py install shendiao --src Export   -> wuxia_launch_Data\mods\shendiao
+    shendiao_mod 89.3MB / shendiao_maps 380.9MB
+```
+
+manifest 校验：head 67 个（含 44/73）、`CgTaohuadao.prefab`、`cg/taohuadao.png` 均在包内；
+`check_scene_fileids.py 62_pomiao.unity` 0 问题；`sim_lua --preset ch1` 5 条线全过；
+`lint_lua` 168 脚本 0 问题；`check_story` 0 错 0 提醒；`jyx2mod.py check` [ok]。
+
+进游戏请用**新存档**（旧存档的 `WorldMapSaveData` 会带旧的 SceneInfo，
+把本轮"默认隐藏"的几个人当成都该藏着）。
+
+
+### 8) 头像补全（人物表 75 行 → 90 张头像，缺图 0）
+
+之前 `人物.xlsx` 里有一批 Pic 在 MOD 的 `BuildSource/head/` 下没有图：
+`61 伏格多`（最终 boss）、`62 将军府士兵`、`71 曼陀谷弟子`、`610 蓝隼士兵`
+（base 里只有借来的原版人脸），以及**完全没图**的 `141-149/1410 野狼`、
+`163-168 黑熊/巨型黑熊`、`181/182 毒蛇`。
+
+- 新增 `gen_heads.py` 的 ROSTER 条目（画面风格与已有 65 张一致）。
+- **动物必须用另一套提示词**：原来的 STYLE 写着"半身胸像、肩膀入画"，
+  模型会把野狼画成披狼皮的汉子、毒蛇画成"肩上盘蛇的人"。
+  `ANIMAL_STYLE` 明说"画面中只有这只动物，绝对不要出现人"之后才正常。
+- `dup_head_pics.py`：同一个 Pic 代号只生成一张，再复制给其它代号
+  （曼陀谷弟子 71→72、野狼 141→142…149/1410、黑熊 163→164…167、毒蛇 181→182）。
+- 复查：`人物.xlsx` 的 Pic 集合 − `BuildSource/head/*.png` = **空**；
+  `shendiao_mod.manifest` 里 `BuildSource/head/*.png` 共 **90** 个，与磁盘一致。
+
+> 同一个"先 `open('w')` 再读文件"的坑这轮又踩了一次：`dup_head_pics.py` 里
+> `io.open(meta,'w').write(G.meta_for(dst))` → 15 个 meta 变成 0 字节。
+> 现在 `meta_for()` 会校验模板（必须 `fileFormatVersion:` 开头且 > 500 字节），
+> 复制类脚本一律"先取文本再写文件"。
+
+### 9) 本轮最终状态
+
+| 项目 | 结果 |
+| --- | --- |
+| `人物.xlsx` | 75 行（新增 44 武三通 / 73 洪凌波），Pic 全部有头像 |
+| `Models/` | 57 个 ModelAsset（新增 武三通 / 洪凌波） |
+| `62_pomiao.unity` | `Level/NPC` 下 9 个实例 + `Level/去桃花岛`（Canvas 图） |
+| `BuildSource/cg/` | `taohuadao.png` 1920×1080（nano-banana-2.1 生成） |
+| 导出 | `Export/shendiao`：shendiao_mod ≈ 89MB / shendiao_maps ≈ 381MB |
+| 安装 | `wuxia_launch_Data\mods\shendiao`（最后一次导出后已覆盖安装） |
+| 校验 | lint 0 / check_story 0 / scene fileids 0 / mod check `[ok]` / sim 5 条线全过 |
+
+
+### 10) 第二轮玩家反馈：郭靖/黄蓉 提前登场 + 朝向 + 飘在空中
+
+玩家原话：「拿了铁枪、跟庙祝说完话，郭靖黄蓉就提前出现了（应该等李莫愁那一段之后）；
+两人的朝向不对，而且是飘在空中的。」
+
+**① 提前登场 —— 根因在 `559.lua` 的 `::label3::`**
+
+559 的分支原本是：
+
+- `::label1::` `第一回_旧事 == 0` → 讲九个血手印 / 十年之期，放出坟前三人；
+- `::label2::` `第一回_中毒 == 1 and 第一回_求医 == 0` → 指路去佛堂，放出郭靖/黄蓉；
+- `::label3::` `序章完成 == 0` → **无条件** `ShowSceneNpc("NPC/郭靖"|"NPC/黄蓉", true)`。
+
+558（供桌上那只旧木箱＝铁枪残片）最后一句是「铁枪残片。去问<color=#FF0000>老庙祝</color>。」
+玩家照着做，就会在**还没中毒**的状态下再点一次庙祝 → 落进 label3 → 两位客人提前登场，
+而坟地那桩事（563）还没开始。
+
+修法：label3 只在 `第一回_求医 == 1`（＝已经被指去佛堂）时才补显；否则只说
+「后山那两座坟，你还没去看罢」。`sim_lua.py --preset ch1` 新增一条回归线
+（`557 558 559 559 559`），断言此时日志里**没有** 郭靖/黄蓉 的「出现」事件。
+
+**② 朝向 —— 场景里本来就写着 yaw=90（面朝东墙）**
+
+`62_pomiao.unity` 里郭靖/黄蓉的 `m_Modifications` 都有 `m_LocalEulerAnglesHint.y: 90`，
+两人并排面朝东侧墙。按剧情「站在铁枪（供桌）前」改：
+
+| NPC | 位置 | 原 yaw | 新 yaw | 朝向 |
+| --- | --- | --- | --- | --- |
+| 郭靖 | (0.8, 5, -6) | 90 | **220** | 供桌 Table_17 (-1.6, 5.1, -8.8) |
+| 黄蓉 | (2.2, 5, -7.2) | 90 | **247** | 东侧、同样望着供桌 |
+
+- yaw 公式：`atan2(dx, dz)`（Unity 里 yaw 0 = +Z 朝玩家来的方向，90 = +X，180 = -Z，270 = -X）。
+- `edit_instance.py --rot-y` 会同时写 `m_LocalRotation.w/y` 和 `m_LocalEulerAnglesHint.y`，不要手改四元数。
+- 1001 收尾那句「黄蓉就在佛堂西首坐着」一并改掉：她其实在**东**首、而且**站**着
+  （`sit_on_chair.controller` 已经在上一轮撤掉）。
+
+**③「飘在空中」＝ 盘腿坐在半空（上一轮已修，玩家还在跑旧包）**
+
+根因是早先给郭靖/黄蓉的实例套了 `sit_on_chair.controller`（在
+`BuildSource/AnimationControllers/备份/` 下），场景里又没给她们摆椅子 → 悬空盘坐。
+HEAD（`4e425e2f6`）已把 `62_pomiao.unity` 两个实例的 `m_Controller` 改回
+`GuojingController`（`c1fb7eef…`）/ `HuangrongController`（`afb4f35a…`），
+贴地高度 y=5.0 与同图另外 7 个 NPC 一致（佛堂家具 origin 全在 5.1，地面 ≈ 5.14）。
+
+> **为什么改了还是不对：玩家跑的是旧包。**
+> `Build\群侠传启动_Data\mods\shendiao\shendiao_mod` 时间戳 **10-28 20:00**，
+> 比 HEAD 提交（10-29 11:06）和今天的导出都早；`Build\群侠传启动.exe` 也是 10-28 21:03。
+> 排查「改了没效果」的第一步固定是比对三处时间戳：
+> ① `jyx2/Assets/Mods/shendiao/{Lua,Maps}` ② `Export/shendiao` ③ `Build\群侠传启动_Data\mods\shendiao`。
+> 注意 Lua 也在 `shendiao_mod` 这个 AB 里（manifest 里 175 条 `Lua/…`），
+> 所以**只改 Lua 也必须重新导出**。
+
+**④ 死代码清理：`Lua/npc_face.lua` 已删除**
+
+它原本用 `util.hotfix_ex(CS.LevelMaster, "Start", …)` 在每次进场景后把 NPC 转向「所有 NPC 的质心」，
+想一把修掉「郭靖面朝墙壁」这类穿帮。实测**从未生效**：`Player.log` 里只有
+`preloading npc_face...` 与文件内容的回显，没有运行期的
+`[npc_face] N 个 NPC 已转向场景中心` 一行（推测是 `LevelMaster.Start` 这条热更没挂上 ——
+同一次运行里 `hotfix.lua` 里 `CS.GameMainMenu.OnCreate` 那句打印同样没出现过）。
+朝向这种一次性的美术参数直接写在 `.unity` 里（`edit_instance.py --rot-y 220`）更可靠，
+所以删掉该文件与 `.meta`。
+
+**⑤ 本轮校验**
+
+| 项目 | 结果 |
+| --- | --- |
+| `lint_lua.py` | 167 个脚本，0 问题（删掉 `npc_face.lua` 后少 1 个） |
+| `check_story.py` | 0 错误 / 0 提醒 |
+| `check_scene_fileids.py 62_pomiao.unity` | 1 个场景，0 问题 |
+| `sim_lua.py --preset ch1` | 6 条线全过（含新增「铁枪残片线」） |
+| 重新导出 / 安装 | `Export/shendiao` 12:06/12:08；已 `install` 到 Steam 版 `wuxia_launch_Data\mods\shendiao`，并手动同步到 `Build\群侠传启动_Data\mods\shendiao` |
+
+> `jyx2mod.py install` 只认 **`wuxia_launch.exe`**（Steam 版根目录），
+> `--game Build` 会被静默忽略（`is_game_dir` 找不到 `wuxia_launch.exe`，回落到 Steam 库）。
+> 本地 `Build\群侠传启动.exe`（Player 构建）的 mods 目录要自己拷：
+> `Copy-Item 'Export\shendiao\*' -Destination 'Build\群侠传启动_Data\mods\shendiao' -Recurse -Force`。
+
+**⑥ 踩坑：`jyx2mod.py unity`（batchmode）不会重编译 C# 脚本**
+
+这轮想加一个 `ShendiaoNavProbe.ProbePomiaoNpcs`（报每个 NPC 的 Renderer 脚底高度 vs
+NavMesh 采样高度、controller 名、与供桌的夹角），验证"飘在空中/朝向"。结果 batchmode 里
+`-executeMethod` 永远报 `method ... could not be found`：
+
+- `Library/ScriptAssemblies/Assembly-CSharp-Editor.dll` 的时间戳还停在 **10-28 21:01**，
+  今天的几次 `-executeMethod` 运行日志里都是 `AssetDatabase: script compilation time: 0.03s`
+  ／ `CompileScripts: 30ms` —— **等于没编译**；
+- 把 `Assembly-CSharp-Editor.dll` 删掉再跑，报错从 `method could not be found` 变成
+  `class 'ShendiaoNavProbe' could not be found`，说明执行 `-executeMethod` 在脚本编译**之前**；
+- 加 `-nographics` 与否、`-batchmode` 与否、清 `Temp/UnityLockfile` 都一样。
+
+所以：**新增/修改 `.cs` 之后，必须先在 Unity 编辑器里打开一次工程让它编译**，
+再跑 `jyx2mod.py unity`（导出本身不需要脚本，但 `Jyx2ModCli` 属于 Editor 程序集）。
+顺带记住：`-batchmode` 进程崩溃后会**残留进程并占着 `jyx2/Temp/UnityLockfile`**，
+下一次 batchmode 直接 `EditorMonoConsole ... HandleProjectAlreadyOpenInAnotherInstance`
+然后挂死 —— 先 `Get-Process Unity` + `Get-CimInstance Win32_Process` 看命令行，
+确认是自己起的那个再 `Stop-Process`，别把玩家开着的编辑器杀了。
+
+> 这轮因此**放弃**了 C# 探针（无法验证的代码不留），改用纯文本手段核对（`62_pomiao.unity`）：
+> - 郭靖实例的 `m_Modifications` 里 `m_Controller → c1fb7eef… = GuojingController`，
+>   黄蓉 → `afb4f35a… = HuangrongController`（两条都在 **`AnimationControllers/备份/`** 下）；
+>   全文 `sit_on_chair` 出现 **0** 次；
+> - 两人的 `m_LocalPosition.y` 与另外 7 个 NPC 一样是 **5.0**；
+> - `m_LocalEulerAnglesHint.y` 已是 **220 / 247**。
+
+

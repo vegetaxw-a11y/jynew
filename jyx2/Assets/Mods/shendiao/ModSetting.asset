@@ -24,6 +24,8 @@ MonoBehaviour:
   PlayerName: "\u6768\u8FC7"
   PreloadedLua:
   - hotfix
+  - expr
+  - balance
   EnableSaveBigMapOnly: 0
   EnableKickTeammateBigMapOnly: 1
   AutoBattleOnly: 0
@@ -32,6 +34,141 @@ MonoBehaviour:
   IsConsoleEnable: 1
   ConsoleDisableDifficulty: 0100000002000000
   IsPlayUseItemAnimation: 1
-  StoryIdNameFixes: []
+  StoryIdNameFixes:
+  - Id: 9000002
+    Name: "\u6768\u8FC7"
+  - Id: 9000003
+    Name: "\u6768\u8FC7"
+  - Id: 9000004
+    Name: "\u6768\u8FC7"
+  - Id: 9000008
+    Name: "\u6768\u8FC7"
+  - Id: 9000108
+    Name: "\u90ED\u9756"
+  - Id: 9000202
+    Name: "\u8D75\u5FD7\u656C"
+  - Id: 9000212
+    Name: "\u5B59\u5A46\u5A46"
+  - Id: 9000214
+    Name: "\u5B59\u5A46\u5A46"
+  - Id: 9000218
+    Name: "\u5B59\u5A46\u5A46"
+  - Id: 9000223
+    Name: "\u5C0F\u9F99\u5973"
+  - Id: 9000224
+    Name: "\u5C0F\u9F99\u5973"
+  - Id: 9000228
+    Name: "\u5C0F\u9F99\u5973"
+  - Id: 9000238
+    Name: "\u4E18\u5904\u673A"
+  - Id: 9000264
+    Name: "\u516C\u5B59\u6B62"
+  - Id: 9000277
+    Name: "\u516C\u5B59\u7EFF\u843C"
+  - Id: 9000284
+    Name: "\u6A0A\u4E00\u7FC1"
+  - Id: 9000294
+    Name: "\u88D8\u5343\u5C3A"
+  - Id: 9000313
+    Name: "\u6D2A\u4E03\u516C"
+  - Id: 9000314
+    Name: "\u6D2A\u4E03\u516C"
+  - Id: 9000354
+    Name: "\u9646\u65E0\u53CC"
+  - Id: 9000362
+    Name: "\u5468\u4F2F\u901A"
+  - Id: 9000363
+    Name: "\u5468\u4F2F\u901A"
+  - Id: 9000364
+    Name: "\u5468\u4F2F\u901A"
+  - Id: 9000374
+    Name: "\u745B\u59D1"
+  - Id: 9000384
+    Name: "\u4E00\u706F"
+  - Id: 9000392
+    Name: "\u88D8\u5343\u4EDE"
+  - Id: 9000394
+    Name: "\u88D8\u5343\u4EDE"
+  - Id: 9000404
+    Name: "\u6B27\u9633\u950B"
+  - Id: 9000434
+    Name: "\u534E\u5C71\u6D3E\u5F1F\u5B50"
+  - Id: 9000602
+    Name: "\u9E7F\u6E05\u7B03"
+  - Id: 9000604
+    Name: "\u9E7F\u6E05\u7B03"
+  - Id: 9000702
+    Name: "\u674E\u83AB\u6101"
+  - Id: 9000708
+    Name: "\u674E\u83AB\u6101"
+  - Id: 9000904
+    Name: "\u7A0B\u82F1"
+  Name: "\u6768\u8FC7"
+  - - Id: 9000003
+  Name: "\u6768\u8FC7"
+  - - Id: 9000004
+  Name: "\u6768\u8FC7"
+  - - Id: 9000008
+  Name: "\u6768\u8FC7"
+  - - Id: 9000108
+  Name: "\u90ED\u9756"
+  - - Id: 9000202
+  Name: "\u8D75\u5FD7\u656C"
+  - - Id: 9000212
+  Name: "\u5B59\u5A46\u5A46"
+  - - Id: 9000214
+  Name: "\u5B59\u5A46\u5A46"
+  - - Id: 9000218
+  Name: "\u5B59\u5A46\u5A46"
+  - - Id: 9000223
+  Name: "\u5C0F\u9F99\u5973"
+  - - Id: 9000224
+  Name: "\u5C0F\u9F99\u5973"
+  - - Id: 9000228
+  Name: "\u5C0F\u9F99\u5973"
+  - - Id: 9000238
+  Name: "\u4E18\u5904\u673A"
+  - - Id: 9000264
+  Name: "\u516C\u5B59\u6B62"
+  - - Id: 9000277
+  Name: "\u516C\u5B59\u7EFF\u843C"
+  - - Id: 9000284
+  Name: "\u6A0A\u4E00\u7FC1"
+  - - Id: 9000294
+  Name: "\u88D8\u5343\u5C3A"
+  - - Id: 9000313
+  Name: "\u6D2A\u4E03\u516C"
+  - - Id: 9000314
+  Name: "\u6D2A\u4E03\u516C"
+  - - Id: 9000354
+  Name: "\u9646\u65E0\u53CC"
+  - - Id: 9000362
+  Name: "\u5468\u4F2F\u901A"
+  - - Id: 9000363
+  Name: "\u5468\u4F2F\u901A"
+  - - Id: 9000364
+  Name: "\u5468\u4F2F\u901A"
+  - - Id: 9000374
+  Name: "\u745B\u59D1"
+  - - Id: 9000384
+  Name: "\u4E00\u706F"
+  - - Id: 9000392
+  Name: "\u88D8\u5343\u4EDE"
+  - - Id: 9000394
+  Name: "\u88D8\u5343\u4EDE"
+  - - Id: 9000404
+  Name: "\u6B27\u9633\u950B"
+  - - Id: 9000434
+  Name: "\u534E\u5C71\u6D3E\u5F1F\u5B50"
+  - - Id: 9000602
+  Name: "\u9E7F\u6E05\u7B03"
+  - - Id: 9000604
+  Name: "\u9E7F\u6E05\u7B03"
+  - - Id: 9000702
+  Name: "\u674E\u83AB\u6101"
+  - - Id: 9000708
+  Name: "\u674E\u83AB\u6101"
+  - - Id: 9000904
+  Name: "\u7A0B\u82F1"
   CameraOffsetNear: {x: 0, y: 0, z: 0}
   CameraOffsetFar: {x: 0, y: 0, z: 0}

@@ -17,12 +17,25 @@ TARGET_DIR = os.path.join(ROOT, 'jyx2', 'Assets', 'Mods', 'shendiao', 'BuildSour
 BUNDLE = 'shendiao_mod'
 APPLY = '--apply' in sys.argv
 
+# --only 44,73  只处理这几个（新生成的头像 .meta 是从同目录模板复制来的，
+# spriteID 会跟模板撞，全量重跑又会把所有 spriteID 都换掉，所以支持挑文件）。
+ONLY = None
+if '--only' in sys.argv:
+    ONLY = set(x.strip() for x in sys.argv[sys.argv.index('--only') + 1].split(',') if x.strip())
+
 report = []
 for name in sorted(os.listdir(TARGET_DIR)):
     if not name.endswith('.png.meta'):
         continue
+    if ONLY is not None and name[:-9] not in ONLY:
+        continue
     fp = os.path.join(TARGET_DIR, name)
     t = io.open(fp, encoding='utf-8').read()
+    if not t.startswith('fileFormatVersion:'):
+        # 坏掉的 meta（被截断 / 空文件）不要去 patch，patch 只会把错误固化下来
+        print('[skip] %s 不是合法 meta（%d 字节），先用 fix_head_meta.py 重建'
+              % (name, len(t)))
+        continue
     orig = t
     # 1) 打 bundle 名
     t = re.sub(r'(?m)^  assetBundleName:.*$', '  assetBundleName: ' + BUNDLE, t, count=1)

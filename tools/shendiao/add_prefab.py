@@ -62,18 +62,22 @@ def parse_args(argv):
 
 
 def prefab_roots(text):
-    """返回 (根 GameObject fileID, 根 Transform fileID)。"""
+    """返回 (根 GameObject fileID, 根 Transform fileID, Transform 的类号)。
+
+    类号是 '4'（Transform）或 '224'（RectTransform）—— UI prefab 的根是
+    RectTransform，写场景里的 stripped 块时必须跟着用 !u!224，否则 Unity 认不出来。
+    """
     trs = []
     for cls, fid, st, body in split_blocks(text):
-        if cls == '4' and not st:
+        if cls in ('4', '224') and not st:
             fa = re.search(r'^  m_Father: \{fileID: (-?\d+)\}', body, re.M)
             go = re.search(r'^  m_GameObject: \{fileID: (-?\d+)\}', body, re.M)
             if fa and fa.group(1) == '0' and go:
-                trs.append((fid, go.group(1)))
+                trs.append((fid, go.group(1), cls))
     if not trs:
         raise SystemExit('prefab 里找不到根 Transform（m_Father: {fileID: 0}）')
-    tr_fid, go_fid = trs[0]
-    return go_fid, tr_fid
+    tr_fid, go_fid, tr_cls = trs[0]
+    return go_fid, tr_fid, tr_cls
 
 
 def find_parent_tr(blocks, want):
@@ -111,7 +115,7 @@ def main():
                      io.open(meta, encoding='utf-8').read(), re.M).group(1)
 
     pf_text = io.open(prefab, encoding='utf-8', errors='surrogateescape').read()
-    root_go, root_tr = prefab_roots(pf_text)
+    root_go, root_tr, root_cls = prefab_roots(pf_text)
 
     dst = io.open(scene, encoding='utf-8', errors='surrogateescape').read()
     blocks = split_blocks(dst)
@@ -167,8 +171,8 @@ def main():
         '%s'
         '    m_RemovedComponents: []\n'
         '  m_SourcePrefab: {fileID: 100100000, guid: %s, type: 3}\n'
-        '--- !u!4 &%d stripped\n'
-        'Transform:\n'
+        '--- !u!%s &%d stripped\n'
+        '%s:\n'
         '  m_CorrespondingSourceObject: {fileID: %s, guid: %s, type: 3}\n'
         '  m_PrefabInstance: {fileID: %d}\n'
         '  m_PrefabAsset: {fileID: 0}\n'
@@ -177,8 +181,9 @@ def main():
         '  m_CorrespondingSourceObject: {fileID: %s, guid: %s, type: 3}\n'
         '  m_PrefabInstance: {fileID: %d}\n'
         '  m_PrefabAsset: {fileID: 0}\n'
-        % (inst_fid, parent_tr, mods, G, tr_fid, root_tr, G, inst_fid,
-           go_fid, root_go, G, inst_fid))
+        % (inst_fid, parent_tr, mods, G,
+           root_cls, tr_fid, 'RectTransform' if root_cls == '224' else 'Transform',
+           root_tr, G, inst_fid, go_fid, root_go, G, inst_fid))
 
     patched = False
     for cls, fid, st, body in blocks:

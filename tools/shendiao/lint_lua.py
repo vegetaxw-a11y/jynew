@@ -91,9 +91,18 @@ def strip_code(text):
 def check_balance(code, probs):
     stack = []
     for lineno, raw in enumerate(code.split('\n'), 1):
+        suppress_do = False          # for/while 头部自带的 do 不另开一层块
         for m in KW_RE.finditer(raw):
             kw = m.group(1)
-            if kw in ('if', 'for', 'while', 'function', 'do', 'repeat'):
+            if kw in ('for', 'while'):
+                stack.append((kw, lineno))
+                suppress_do = True
+            elif kw == 'do':
+                if suppress_do:
+                    suppress_do = False
+                else:
+                    stack.append((kw, lineno))
+            elif kw in ('if', 'function', 'repeat'):
                 stack.append((kw, lineno))
             elif kw == 'end':
                 if not stack:
@@ -126,6 +135,17 @@ def cfg_ids(fname, pat=r'^\{(\d+),'):
     return {int(v) for v in re.findall(pat, txt, re.M)}
 
 
+EXPR_BASE = 9000000        # 对话表情的虚拟头像 id 基址，见 Lua/expr.lua
+EXPR_STEP = 10
+
+
+def real_char_id(cid):
+    """把"表情虚拟 id"（9000000 + 角色id*10 + 槽位）还原成真实角色 id。"""
+    if EXPR_BASE < cid < EXPR_BASE + 1000 * EXPR_STEP:
+        return (cid - EXPR_BASE) // EXPR_STEP
+    return cid
+
+
 def lint(path, ids=None, bids=None):
     text = io.open(path, encoding='utf-8', errors='surrogateescape').read()
     code, probs = strip_code(text)
@@ -135,7 +155,8 @@ def lint(path, ids=None, bids=None):
         if ids is not None:
             for m in re.finditer(r'\bTalk\(\s*(-?\d+)', raw):
                 cid = int(m.group(1))
-                if cid > 0 and cid not in ids:
+                real = real_char_id(cid)
+                if real > 0 and real not in ids:
                     probs.append((lineno, 'Talk 的人物 Id %d 不在人物表里' % cid))
         if bids is not None:
             for m in re.finditer(r'\bTryBattle\(\s*(\d+)\s*\)', raw):

@@ -87,7 +87,7 @@ NativeFormatImporter:
   externalObjects: {{}}
   mainObjectFileID: 11400000
   userData: 
-  assetBundleName: 
+  assetBundleName: shendiao_mod
   assetBundleVariant: 
 """
 

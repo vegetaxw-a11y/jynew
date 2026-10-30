@@ -16,7 +16,7 @@ if GetFlagInt("孙婆婆赠药") == 1 then goto label0 end;
     Talk(21, "若在这儿待不下去，就到后山来寻我。石门夜里不关。")
     SetFlagInt("逃墓", 1);
     ModifyEvent(-2, -2, -2, -2, -1, -1, -1, -2, -2, -2, -2, -2, -2);
-    Talk(0, "（<color=#FF0000>后山</color>有座活死人墓。听说石门夜里不关。）")
+    Talk(0, "（<color=#FF0000>后山</color>有座活死人墓。听说石门夜里不关。）", EXPR.think)
     do return end;
 ::label0::
     Talk(21, "又挨打了？忍着吧。全真教的规矩，比铁还硬。")
