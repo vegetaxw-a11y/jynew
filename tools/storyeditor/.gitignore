@@ -1,0 +1,5 @@
+.backups/
+__pycache__/
+*.pyc
+_dump_*.json
+_serve.pid

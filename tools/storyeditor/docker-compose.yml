@@ -1,0 +1,17 @@
+# 用法：在 tools/storyeditor/ 目录执行
+#   docker compose up -d --build
+#   docker compose logs -f
+#   docker compose down
+services:
+  storyeditor:
+    build: .
+    image: jyx2-storyeditor:latest
+    container_name: jyx2-storyeditor
+    ports:
+      - "8777:8777"
+    volumes:
+      # 仓库根挂进来：编辑器改的就是仓库里的真文件（Lua/*.lua、Configs、BuildSource/head）
+      - ../..:/repo
+    environment:
+      - PYTHONIOENCODING=utf-8
+    restart: unless-stopped

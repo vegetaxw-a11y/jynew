@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>神雕侠侣 · 剧情编辑器</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header id="topbar">
+  <div class="brand">
+    <span class="logo">侠</span>
+    <div class="brand-text">
+      <h1>剧情编辑器</h1>
+      <p id="modName">载入中…</p>
+    </div>
+  </div>
+  <div class="spacer"></div>
+  <input id="search" type="search" placeholder="搜索：事件号 / NPC / 对白 / 旗标">
+  <button id="btnRefresh" class="ghost" title="重读配置表与场景索引">刷新</button>
+  <button id="btnValidate" class="ghost" title="跑 lint_lua.py + check_story.py">校验剧本</button>
+</header>
+
+<main>
+  <aside id="sidebar">
+    <div class="side-head">
+      <span>剧情列表</span>
+      <span id="eventCount" class="muted"></span>
+    </div>
+    <ul id="eventList"></ul>
+  </aside>
+
+  <section id="stage">
+    <div id="graphToolbar">
+      <span id="graphTitle" class="muted">← 从左侧选一条剧情</span>
+      <div class="spacer"></div>
+      <div class="seg" id="viewToggle">
+        <button data-view="timeline" class="on" title="按源码顺序的台词表（改词更顺手）">台词表</button>
+        <button data-view="graph" title="控制流节点图">节点图</button>
+      </div>
+      <button data-act="layout" title="按依赖重新排布">自动布局</button>
+      <button data-act="fit" title="缩放到合适大小">适应窗口</button>
+      <button data-act="zoomIn">＋</button>
+      <button data-act="zoomOut">－</button>
+      <button data-act="start" title="跳到「开始」节点">定位开始</button>
+      <button data-act="json" title="导出当前图 JSON（含节点/边）">导出</button>
+      <button data-act="source" title="看 / 改整份 Lua 源码">源码</button>
+    </div>
+    <div id="canvasWrap">
+      <svg id="canvas"></svg>
+      <div id="hint">滚轮缩放 · 空白拖动漫游 · 拖节点改位置 · 单击看详情 · 双击放大到可读</div>
+    </div>
+    <div id="timeline" class="hidden"></div>
+  </section>
+
+  <aside id="inspector">
+    <div class="empty">还没有选中节点</div>
+  </aside>
+</main>
+
+<div id="modal" class="hidden">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span id="modalTitle">校验结果</span>
+      <button id="modalClose" class="ghost">关闭</button>
+    </div>
+    <pre id="modalBody"></pre>
+  </div>
+</div>
+
+<div id="toast" class="hidden"></div>
+
+<script src="/graph.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

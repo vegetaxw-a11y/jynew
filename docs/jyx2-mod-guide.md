@@ -695,6 +695,24 @@ $env:BUILD_PATH = 'C:\Games\jynew\Build\'      # 必须带尾部反斜杠
 | 装 MOD 到自建包 | `jyx2mod.py install` 只认 `wuxia_launch.exe`，自建包叫 `群侠传启动.exe` → 手动把 `Export/<mod>` 拷到 `<exe>_Data/mods/<mod>/` |
 | TMP 材质 NRE | 进游戏后大量 `TMP_SubMeshUI.UpdateMaterial` NRE（TMP 材质没进 AB），MOD 选择界面阶段不出现 |
 
+### 10.5 `tools/storyeditor/`（Web 剧情编辑器，2026-10 新增）
+
+把 `Lua/*.lua` 解析成节点图，在浏览器里看/改对白，改完立刻做语法自检。
+**只用 Python 标准库**，前端原生 JS + SVG，零 npm。
+
+```powershell
+python tools/storyeditor/serve.py            # http://127.0.0.1:8777
+cd tools/storyeditor; docker compose up -d --build   # 或用 Docker（仓库挂到 /repo）
+python tools/storyeditor/selftest_story.py   # 改了解析/回写逻辑必跑
+```
+
+- 解析器只覆盖剧本的既有写法（if/goto/label/Talk/动作调用）；出现 `while`/`for`/局部函数先跑
+  `survey_lua.py` 看要不要补
+- 回写是**行级替换**：保留缩进/分号/尾注释/CRLF；带乐观锁（原文对不上返回 409）、改前备份、
+  改后 `lint_lua` 自检；人物 Id 不存在直接拒绝
+- 它**只改源文件**，游戏里生效仍要 `jyx2mod.py unity` + `install`（Lua 在 `<id>_mod` 里）
+- 详细说明与后续路线见 `tools/storyeditor/README.md`
+
 ---
 
 ## 11. 排查决策树

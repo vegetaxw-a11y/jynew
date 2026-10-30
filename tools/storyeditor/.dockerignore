@@ -1,0 +1,9 @@
+.backups/
+__pycache__/
+*.pyc
+_dump_*.json
+_dev*.py
+_dev*.txt
+_dev*.err
+_serve.*
+_survey*.txt
